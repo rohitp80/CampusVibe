@@ -13,27 +13,51 @@ const getAuthHeaders = async () => {
 export const api = {
   posts: {
     getAll: async (page = 1, limit = 20) => {
-      const response = await fetch(`${API_BASE_URL}/posts?page=${page}&limit=${limit}`, {
-        headers: await getAuthHeaders()
-      });
-      return response.json();
+      try {
+        const response = await fetch(`${API_BASE_URL}/posts?page=${page}&limit=${limit}`, {
+          headers: await getAuthHeaders()
+        });
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status}`);
+        }
+        return response.json();
+      } catch (error) {
+        console.error('API posts.getAll failed:', error);
+        throw error;
+      }
     },
     
     create: async (post: { title: string; content: string; type?: string; is_anonymous?: boolean; tags?: string[] }) => {
-      const response = await fetch(`${API_BASE_URL}/posts`, {
-        method: 'POST',
-        headers: await getAuthHeaders(),
-        body: JSON.stringify(post)
-      });
-      return response.json();
+      try {
+        const response = await fetch(`${API_BASE_URL}/posts`, {
+          method: 'POST',
+          headers: await getAuthHeaders(),
+          body: JSON.stringify(post)
+        });
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status}`);
+        }
+        return response.json();
+      } catch (error) {
+        console.error('API posts.create failed:', error);
+        throw error;
+      }
     },
     
     like: async (postId: string) => {
-      const response = await fetch(`${API_BASE_URL}/posts/${postId}/like`, {
-        method: 'POST',
-        headers: await getAuthHeaders()
-      });
-      return response.json();
+      try {
+        const response = await fetch(`${API_BASE_URL}/posts/${postId}/like`, {
+          method: 'POST',
+          headers: await getAuthHeaders()
+        });
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status}`);
+        }
+        return response.json();
+      } catch (error) {
+        console.error('API posts.like failed:', error);
+        throw error;
+      }
     }
   }
 };
