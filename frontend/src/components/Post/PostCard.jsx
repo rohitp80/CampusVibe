@@ -16,11 +16,12 @@ import {
 } from 'lucide-react';
 import { moods } from '../../data/dummyData.js';
 
-const PostCard = ({ post }) => {
-  const { actions } = useApp();
+const PostCard = ({ post, onPostDeleted }) => {
+  const { actions, state } = useApp();
   const [showComments, setShowComments] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [comments, setComments] = useState([]);
   const [commentCount, setCommentCount] = useState(post.comments || 0);
   const [newComment, setNewComment] = useState('');
@@ -57,7 +58,10 @@ const PostCard = ({ post }) => {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer dummy-token' // Replace with real auth
         },
-        body: JSON.stringify({ content: newComment.trim() })
+        body: JSON.stringify({ 
+          content: newComment.trim(),
+          currentUser: state.currentUser // Send current user data
+        })
       });
       
       if (response.ok) {
@@ -92,6 +96,26 @@ const PostCard = ({ post }) => {
       fetchComments();
     }
   }, [showComments]);
+
+  // Close options menu when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showOptionsMenu) {
+        const optionsMenu = event.target.closest('.options-menu');
+        const moreButton = event.target.closest('.more-button');
+        
+        if (!optionsMenu && !moreButton) {
+          setShowOptionsMenu(false);
+        }
+      }
+    };
+    
+    if (showOptionsMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showOptionsMenu]);
 
   const mood = moods.find(m => m.name === post.mood);
   
@@ -244,9 +268,129 @@ const PostCard = ({ post }) => {
           </div>
         </div>
         
-        <button className="p-2 hover:bg-secondary/50 rounded-lg transition-colors">
-          <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-        </button>
+        <div className="relative">
+          <button 
+            onClick={() => setShowOptionsMenu(!showOptionsMenu)}
+            className="more-button p-2 hover:bg-secondary/50 rounded-lg transition-colors"
+          >
+            <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+          </button>
+          
+          {showOptionsMenu && (
+            <div className="options-menu absolute right-0 top-10 bg-card border border-border rounded-lg shadow-elevated p-2 z-10 min-w-[150px]">
+              <button
+                onClick={() => {
+                  const postUrl = `${window.location.origin}/post/${post.id}`;
+                  navigator.clipboard.writeText(postUrl).then(() => {
+                    actions.addNotification({
+                      id: Date.now(),
+                      type: 'success',
+                      message: 'Post link copied to clipboard!',
+                      timestamp: new Date()
+                    });
+                  }).catch(() => {
+                    actions.addNotification({
+                      id: Date.now(),
+                      type: 'error',
+                      message: 'Failed to copy link',
+                      timestamp: new Date()
+                    });
+                  });
+                  setShowOptionsMenu(false);
+                }}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-secondary/50 rounded transition-colors"
+              >
+                Copy Link
+              </button>
+              <button
+                onClick={() => {
+                  console.log('Save post clicked for:', post.id);
+                  console.log('Current savedPosts:', state.savedPosts);
+                  
+                  const isAlreadySaved = state.savedPosts.some(p => p.id === post.id);
+                  console.log('Is already saved:', isAlreadySaved);
+                  
+                  if (isAlreadySaved) {
+                    console.log('Unsaving post...');
+                    actions.unsavePost(post.id);
+                    actions.addNotification({
+                      id: Date.now(),
+                      type: 'info',
+                      message: 'Post removed from saved!',
+                      timestamp: new Date()
+                    });
+                  } else {
+                    console.log('Saving post...');
+                    actions.savePost(post);
+                    actions.addNotification({
+                      id: Date.now(),
+                      type: 'success',
+                      message: 'Post saved successfully!',
+                      timestamp: new Date()
+                    });
+                  }
+                  setShowOptionsMenu(false);
+                }}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-secondary/50 rounded transition-colors"
+              >
+                {state.savedPosts.some(p => p.id === post.id) ? 'Unsave Post' : 'Save Post'}
+              </button>
+              {/* Delete option - only show for user's own posts */}
+              {(post.userId === state.currentUser?.id || post.user_id === '8316b40d-b133-4f83-a3c0-d015b070d058') && (
+                <button
+                  onClick={async () => {
+                    if (window.confirm('Are you sure you want to delete this post?')) {
+                      try {
+                        const response = await fetch(`http://localhost:3000/api/posts/${post.id}`, {
+                          method: 'DELETE'
+                        });
+                        
+                        if (response.ok) {
+                          actions.deletePost(post.id);
+                          if (onPostDeleted) onPostDeleted(post.id);
+                          actions.addNotification({
+                            id: Date.now(),
+                            type: 'success',
+                            message: 'Post deleted successfully!',
+                            timestamp: new Date()
+                          });
+                        } else {
+                          throw new Error('Failed to delete post');
+                        }
+                      } catch (error) {
+                        console.error('Delete failed:', error);
+                        actions.addNotification({
+                          id: Date.now(),
+                          type: 'error',
+                          message: 'Failed to delete post',
+                          timestamp: new Date()
+                        });
+                      }
+                    }
+                    setShowOptionsMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 rounded transition-colors text-red-600"
+                >
+                  Delete Post
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  actions.addNotification({
+                    id: Date.now(),
+                    type: 'info',
+                    message: 'Post reported',
+                    timestamp: new Date()
+                  });
+                  setShowOptionsMenu(false);
+                }}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-secondary/50 rounded transition-colors text-red-600"
+              >
+                Report Post
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       
       {/* Time Capsule Lock Overlay */}
@@ -413,17 +557,17 @@ const PostCard = ({ post }) => {
           )}
           
           {/* Real Comments */}
-          {!loadingComments && comments.map(comment => (
+          {!loadingComments && comments.map((comment, index) => (
             <div key={comment.id} className="flex gap-3">
               <img 
-                src={comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.profiles?.username}`}
-                alt={comment.profiles?.display_name || 'User'}
+                src={comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.profiles?.username || `user${index}`}`}
+                alt={comment.profiles?.display_name || `User ${index + 1}`}
                 className="w-8 h-8 rounded-full"
               />
               <div className="flex-1 bg-secondary/30 rounded-lg px-3 py-2">
                 <p className="text-sm text-foreground">{comment.content}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {comment.profiles?.display_name || comment.profiles?.username || 'User'} • {new Date(comment.created_at).toLocaleTimeString()}
+                  {comment.profiles?.display_name || comment.profiles?.username || `Anonymous User ${index + 1}`} • {new Date(comment.created_at).toLocaleTimeString()}
                 </p>
               </div>
             </div>

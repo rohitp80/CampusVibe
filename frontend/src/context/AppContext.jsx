@@ -15,6 +15,23 @@ const loadStoredPosts = () => {
   }
 };
 
+// Load initial values from localStorage
+const getInitialCurrentPage = () => {
+  const saved = localStorage.getItem('currentPage') || 'feed';
+  console.log('getInitialCurrentPage:', saved);
+  return saved;
+};
+
+const getInitialFilteredPosts = () => {
+  const savedCommunity = JSON.parse(localStorage.getItem('selectedCommunity') || 'null');
+  const posts = loadStoredPosts();
+  
+  if (savedCommunity) {
+    return posts.filter(post => post.community === savedCommunity.name);
+  }
+  return posts;
+};
+
 const initialState = {
   // Authentication
   isAuthenticated: false,
@@ -22,11 +39,15 @@ const initialState = {
   
   // App state
   theme: 'dark',
+  currentPage: getInitialCurrentPage(), // Persist current page
   
   // Posts and feed
+  posts: initialPosts,
+  filteredPosts: initialPosts,
+  savedPosts: JSON.parse(localStorage.getItem('savedPosts') || '[]'),
   posts: loadStoredPosts(),
-  filteredPosts: loadStoredPosts(),
-  selectedCommunity: null,
+  filteredPosts: getInitialFilteredPosts(), // Restore filtered posts based on selected community
+  selectedCommunity: JSON.parse(localStorage.getItem('selectedCommunity') || 'null'),
   
   // Events
   events: initialEvents,
@@ -53,6 +74,11 @@ const initialState = {
 };
 
 const appReducer = (state, action) => {
+  console.log('Reducer action:', action.type, 'payload:', action.payload);
+  if (action.type === 'SET_CURRENT_PAGE' || state.currentPage !== (action.type === 'SET_CURRENT_PAGE' ? action.payload : state.currentPage)) {
+    console.log('currentPage changing from', state.currentPage, 'to', action.type === 'SET_CURRENT_PAGE' ? action.payload : state.currentPage);
+  }
+  
   switch (action.type) {
     case 'LOGIN':
       return { 
@@ -72,6 +98,9 @@ const appReducer = (state, action) => {
       return { ...state, theme: action.payload };
       
     case 'SET_CURRENT_PAGE':
+      console.log('Setting currentPage to:', action.payload);
+      localStorage.setItem('currentPage', action.payload);
+      console.log('Saved to localStorage:', localStorage.getItem('currentPage'));
       return { ...state, currentPage: action.payload };
       
     case 'TOGGLE_SIDEBAR':
@@ -94,6 +123,62 @@ const appReducer = (state, action) => {
         ...state, 
         posts: newPostsList,
         filteredPosts: [newPost, ...state.filteredPosts]
+      };
+      
+    case 'DELETE_POST':
+      return {
+        ...state,
+        posts: state.posts.filter(post => post.id !== action.payload),
+        filteredPosts: state.filteredPosts?.filter(post => post.id !== action.payload)
+      };
+
+    case 'SELECT_COMMUNITY':
+      const communityPosts = action.payload 
+        ? state.posts.filter(post => post.community === action.payload.name)
+        : state.posts;
+      localStorage.setItem('selectedCommunity', JSON.stringify(action.payload));
+      return {
+        ...state,
+        selectedCommunity: action.payload,
+        filteredPosts: communityPosts
+      };
+    
+    case 'JOIN_COMMUNITY':
+      return {
+        ...state,
+        communities: state.communities.map(community =>
+          community.id === action.payload
+            ? { ...community, memberCount: community.memberCount + 1, isJoined: true }
+            : community
+        )
+      };
+    
+    case 'LEAVE_COMMUNITY':
+      return {
+        ...state,
+        communities: state.communities.map(community =>
+          community.id === action.payload
+            ? { ...community, memberCount: community.memberCount - 1, isJoined: false }
+            : community
+        )
+      };
+
+    case 'SAVE_POST':
+      const isAlreadySaved = state.savedPosts.some(p => p.id === action.payload.id);
+      if (isAlreadySaved) return state;
+      const newSavedPosts = [...state.savedPosts, action.payload];
+      localStorage.setItem('savedPosts', JSON.stringify(newSavedPosts));
+      return {
+        ...state,
+        savedPosts: newSavedPosts
+      };
+
+    case 'UNSAVE_POST':
+      const filteredSavedPosts = state.savedPosts.filter(post => post.id !== action.payload);
+      localStorage.setItem('savedPosts', JSON.stringify(filteredSavedPosts));
+      return {
+        ...state,
+        savedPosts: filteredSavedPosts
       };
       
     case 'TOGGLE_LIKE':
@@ -332,6 +417,17 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('connecthub-theme', state.theme);
     document.documentElement.classList.toggle('dark', state.theme === 'dark');
   }, [state.theme]);
+
+  // Restore currentPage from localStorage after auth loads
+  useEffect(() => {
+    if (!state.sessionLoading) {
+      const savedPage = localStorage.getItem('currentPage');
+      if (savedPage && savedPage !== state.currentPage) {
+        console.log('Restoring currentPage from localStorage:', savedPage);
+        dispatch({ type: 'SET_CURRENT_PAGE', payload: savedPage });
+      }
+    }
+  }, [state.sessionLoading]);
   
   // Simulate time capsule unlocking
   useEffect(() => {
@@ -371,9 +467,15 @@ export const AppProvider = ({ children }) => {
     setCurrentPage: (page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: page }),
     toggleSidebar: () => dispatch({ type: 'TOGGLE_SIDEBAR' }),
     addPost: (post) => dispatch({ type: 'ADD_POST', payload: post }),
+    deletePost: (postId) => dispatch({ type: 'DELETE_POST', payload: postId }),
+    savePost: (post) => dispatch({ type: 'SAVE_POST', payload: post }),
+    unsavePost: (postId) => dispatch({ type: 'UNSAVE_POST', payload: postId }),
     toggleLike: (postId) => dispatch({ type: 'TOGGLE_LIKE', payload: postId }),
     addComment: (postId, comment) => dispatch({ type: 'ADD_COMMENT', payload: { postId, comment } }),
     filterByCommunity: (community) => dispatch({ type: 'FILTER_BY_COMMUNITY', payload: community }),
+    selectCommunity: (community) => dispatch({ type: 'SELECT_COMMUNITY', payload: community }),
+    joinCommunity: (communityId) => dispatch({ type: 'JOIN_COMMUNITY', payload: communityId }),
+    leaveCommunity: (communityId) => dispatch({ type: 'LEAVE_COMMUNITY', payload: communityId }),
     addEvent: (event) => dispatch({ type: 'ADD_EVENT', payload: event }),
     addCommunity: (community) => dispatch({ type: 'ADD_COMMUNITY', payload: community }),
     setEventFilter: (filter) => dispatch({ type: 'SET_EVENT_FILTER', payload: filter }),

@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
 import { useCreatePost } from '../../hooks/usePosts';
 import { moods, communities, postTypes } from '../../data/dummyData.js';
+import { supabase } from '../../lib/supabase.js';
 import { 
   Image as ImageIcon, 
   Code, 
@@ -10,7 +11,8 @@ import {
   Smile,
   Hash,
   Send,
-  X
+  X,
+  Upload
 } from 'lucide-react';
 
 const CreatePost = () => {
@@ -23,6 +25,8 @@ const CreatePost = () => {
   const [unlockDate, setUnlockDate] = useState('');
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [imageUrl, setImageUrl] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [codeSnippet, setCodeSnippet] = useState('');
   const [showCodeEditor, setShowCodeEditor] = useState(false);
   const [showMoodPicker, setShowMoodPicker] = useState(false);
@@ -46,26 +50,80 @@ const CreatePost = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files[0];
-    if (file) {
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      actions.addNotification({
+        id: Date.now(),
+        type: 'error',
+        message: 'Please select an image file',
+        timestamp: new Date()
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      actions.addNotification({
+        id: Date.now(),
+        type: 'error',
+        message: 'Image size must be less than 5MB',
+        timestamp: new Date()
+      });
+      return;
+    }
+
+    setUploading(true);
+    
+    try {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        setImage(file);
-        setImagePreview(e.target.result);
-      };
+      reader.onload = (e) => setImagePreview(e.target.result);
       reader.readAsDataURL(file);
+
+      const fileName = `${Date.now()}-${file.name}`;
+      const { data, error } = await supabase.storage
+        .from('post-images')
+        .upload(fileName, file);
+
+      if (error) {
+        console.error('Upload error:', error);
+        setImage(file);
+        actions.addNotification({
+          id: Date.now(),
+          type: 'warning',
+          message: 'Using local image (storage not configured)',
+          timestamp: new Date()
+        });
+      } else {
+        const { data: { publicUrl } } = supabase.storage
+          .from('post-images')
+          .getPublicUrl(fileName);
+        
+        setImageUrl(publicUrl);
+        setImage(file);
+        
+        actions.addNotification({
+          id: Date.now(),
+          type: 'success',
+          message: 'Image uploaded successfully!',
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      setImage(file);
+      actions.addNotification({
+        id: Date.now(),
+        type: 'error',
+        message: 'Upload failed, using local image',
+        timestamp: new Date()
+      });
+    } finally {
+      setUploading(false);
     }
   };
-  
-  const removeImage = () => {
-    setImage(null);
-    setImagePreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-  
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -83,6 +141,7 @@ const CreatePost = () => {
       content: content.trim(),
       isAnonymous: selectedType.name === 'Anonymous',
       ...(imagePreview && { image: imagePreview }),
+      ...(imageUrl && { imageUrl: imageUrl }),
       ...(codeSnippet && { codeSnippet }),
       ...(selectedType.name === 'Time Capsule' && unlockDate && {
         unlockDate: new Date(unlockDate),
@@ -102,7 +161,7 @@ const CreatePost = () => {
           is_anonymous: selectedType.name === 'Anonymous',
           ...(selectedCommunity && { community_id: selectedCommunity.id }),
           ...(codeSnippet && { code_snippet: codeSnippet }),
-          ...(imagePreview && { image_url: imagePreview }),
+          ...(imageUrl && { image_url: imageUrl }),
           ...(selectedMood && { mood: selectedMood.name })
         });
         
@@ -114,24 +173,16 @@ const CreatePost = () => {
           message: 'Post saved to backend successfully! 🚀',
           timestamp: new Date()
         });
-        
       } catch (error) {
         console.error('Backend save failed:', error);
         
         actions.addNotification({
           id: Date.now(),
           type: 'warning',
-          message: 'Post created locally, but backend sync failed. Check your connection.',
+          message: 'Post created locally (backend unavailable)',
           timestamp: new Date()
         });
       }
-    } else if (!state.isAuthenticated && content.trim()) {
-      actions.addNotification({
-        id: Date.now(),
-        type: 'info',
-        message: 'Post created locally. Sign in to sync with backend.',
-        timestamp: new Date()
-      });
     }
     
     // Reset form
@@ -142,6 +193,7 @@ const CreatePost = () => {
     setUnlockDate('');
     setImage(null);
     setImagePreview(null);
+    setImageUrl(null);
     setCodeSnippet('');
     setShowCodeEditor(false);
     
@@ -153,6 +205,12 @@ const CreatePost = () => {
         timestamp: new Date()
       });
     }
+  };
+
+  const removeImage = () => {
+    setImage(null);
+    setImagePreview(null);
+    setImageUrl(null);
   };
   
   const isFormValid = () => {
@@ -238,7 +296,6 @@ const CreatePost = () => {
           </div>
         )}
         
-        
         {/* Image Preview */}
         {imagePreview && (
           <div className="mb-4 relative">
@@ -292,10 +349,21 @@ const CreatePost = () => {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="p-2 hover:bg-secondary/50 rounded-lg transition-colors"
-              title="Add Image"
+              disabled={uploading}
+              className={`
+                p-2 rounded-lg transition-colors
+                ${uploading 
+                  ? 'bg-gray-100 cursor-not-allowed' 
+                  : 'hover:bg-secondary/50'
+                }
+              `}
+              title={uploading ? "Uploading..." : "Add Image"}
             >
-              <ImageIcon className="w-5 h-5 text-muted-foreground" />
+              {uploading ? (
+                <Upload className="w-5 h-5 text-gray-400 animate-spin" />
+              ) : (
+                <ImageIcon className="w-5 h-5 text-muted-foreground" />
+              )}
             </button>
             
             {/* Code Snippet */}

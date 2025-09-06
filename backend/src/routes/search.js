@@ -1,7 +1,12 @@
 import express from 'express';
-import { supabase } from '../server.js';
+import { createClient } from '@supabase/supabase-js';
 
 const router = express.Router();
+
+// Initialize Supabase client
+const supabaseUrl = process.env.SUPABASE_URL || 'https://your-project.supabase.co';
+const supabaseKey = process.env.SUPABASE_ANON_KEY || 'your-anon-key';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Search users by username
 router.get('/users', async (req, res) => {

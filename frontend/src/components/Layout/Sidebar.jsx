@@ -1,5 +1,6 @@
 // ConnectHub - Main Sidebar Component
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext.jsx';
 import { communities, moods } from '../../data/dummyData.js';
 import { 
@@ -12,7 +13,8 @@ import {
   Users,
   TrendingUp,
   Hash,
-  Plus
+  Plus,
+  Bookmark
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -23,6 +25,7 @@ const Sidebar = () => {
     { id: 'explore', label: 'Explore', icon: Search },
     { id: 'local', label: 'Local', icon: MapPin },
     { id: 'wellness', label: 'Wellness', icon: Heart },
+    { id: 'saved', label: 'Saved Posts', icon: Bookmark },
     { id: 'chat', label: 'Chat', icon: MessageCircle }
   ];
   
@@ -77,7 +80,14 @@ const Sidebar = () => {
                   >
                     <Icon className="w-5 h-5 flex-shrink-0" />
                     {!state.sidebarCollapsed && (
-                      <span className="font-medium">{item.label}</span>
+                      <>
+                        <span className="font-medium">{item.label}</span>
+                        {item.id === 'saved' && state.savedPosts?.length > 0 && (
+                          <span className="ml-auto bg-primary/20 text-primary text-xs px-2 py-1 rounded-full">
+                            {state.savedPosts.length}
+                          </span>
+                        )}
+                      </>
                     )}
                   </button>
                 );
@@ -96,7 +106,7 @@ const Sidebar = () => {
                     {trendingCommunities.map(community => (
                       <button
                         key={community.id}
-                        onClick={() => actions.filterByCommunity(community.name)}
+                        onClick={() => actions.selectCommunity(community)}
                         className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors"
                       >
                         <div 

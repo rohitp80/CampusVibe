@@ -1,7 +1,12 @@
 import express from 'express';
-import { supabase } from '../server.js';
+import { createClient } from '@supabase/supabase-js';
 
 const router = express.Router();
+
+// Initialize Supabase client
+const supabaseUrl = process.env.SUPABASE_URL || 'https://your-project.supabase.co';
+const supabaseKey = process.env.SUPABASE_ANON_KEY || 'your-anon-key';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Get user's chat rooms
 router.get('/rooms', async (req, res) => {
@@ -138,6 +143,65 @@ router.post('/rooms/:id/messages', async (req, res) => {
     res.status(201).json({ success: true, data });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Get messages for a community
+router.get('/community/:communityId/messages', async (req, res) => {
+  try {
+    const { communityId } = req.params;
+    
+    // Mock messages for now
+    const mockMessages = [
+      {
+        id: 1,
+        community_id: communityId,
+        user_id: 'user1',
+        username: 'alex_codes',
+        message: 'Welcome to the community!',
+        created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString()
+      },
+      {
+        id: 2,
+        community_id: communityId,
+        user_id: 'user2', 
+        username: 'sarah_studies',
+        message: 'Great to be here!',
+        created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString()
+      }
+    ];
+    
+    res.json({ success: true, data: mockMessages });
+  } catch (error) {
+    console.error('Get messages error:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+// Send a message to community
+router.post('/community/:communityId/messages', async (req, res) => {
+  try {
+    const { communityId } = req.params;
+    const { message, username } = req.body;
+    
+    if (!message?.trim()) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+    
+    // Mock message response
+    const newMessage = {
+      id: Date.now(),
+      community_id: communityId,
+      user_id: 'current-user',
+      username: username || 'You',
+      message: message.trim(),
+      created_at: new Date().toISOString()
+    };
+    
+    res.status(201).json({ success: true, data: newMessage });
+  } catch (error) {
+    console.error('Send message error:', error);
+    res.status(500).json({ error: 'Failed to send message' });
   }
 });
 

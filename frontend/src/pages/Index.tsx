@@ -11,19 +11,25 @@ import Local from './Local';
 import Wellness from './Wellness';
 import Profile from './Profile';
 import Chat from './Chat';
+import SavedPosts from './SavedPosts';
 
 const Index = () => {
   const { state, actions } = useApp();
   
   const renderPage = () => {
+    console.log('renderPage called with currentPage:', state.currentPage);
     switch (state.currentPage) {
+      case 'feed': return <Feed />;
       case 'explore': return <Explore />;
       case 'community': return <Community />;
       case 'local': return <Local />;
       case 'wellness': return <Wellness />;
+      case 'saved': return <SavedPosts />;
       case 'profile': return <Profile />;
       case 'chat': return <Chat />;
-      default: return <Feed />;
+      default: 
+        console.log('Default case hit! currentPage was:', state.currentPage);
+        return <Feed />;
     }
   };
   
