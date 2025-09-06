@@ -27,19 +27,36 @@ export const api = {
       }
     },
     
-    create: async (post: { title: string; content: string; type?: string; is_anonymous?: boolean; tags?: string[] }) => {
+    create: async (post: { content: string; type?: string; is_anonymous?: boolean; community_id?: string; code_snippet?: string; image_url?: string; mood?: string }) => {
       try {
+        console.log('🚀 Creating post:', post);
+        
         const response = await fetch(`${API_BASE_URL}/posts`, {
           method: 'POST',
           headers: await getAuthHeaders(),
           body: JSON.stringify(post)
         });
+        
+        const responseData = await response.json();
+        console.log('📡 API Response:', { status: response.status, data: responseData });
+        
         if (!response.ok) {
-          throw new Error(`API Error: ${response.status}`);
+          // Return detailed error from backend
+          const errorMessage = responseData.details || responseData.error || `HTTP ${response.status}`;
+          console.error('❌ API Error:', {
+            status: response.status,
+            error: responseData.error,
+            details: responseData.details,
+            code: responseData.code,
+            hint: responseData.hint
+          });
+          
+          throw new Error(errorMessage);
         }
-        return response.json();
+        
+        return responseData;
       } catch (error) {
-        console.error('API posts.create failed:', error);
+        console.error('💥 API posts.create failed:', error);
         throw error;
       }
     },

@@ -78,7 +78,7 @@ const CreatePost = () => {
       avatar: selectedType.name === 'Anonymous' ? '/api/placeholder/40/40' : state.currentUser.avatar,
       community: selectedCommunity?.name || 'General',
       mood: selectedMood?.name || 'neutral',
-      type: selectedType.name.toLowerCase().replace(' ', ''),
+      type: selectedType.name.toLowerCase(),
       content: content.trim(),
       isAnonymous: selectedType.name === 'Anonymous',
       ...(imagePreview && { image: imagePreview }),
@@ -95,17 +95,42 @@ const CreatePost = () => {
     // Also save to backend if authenticated
     if (state.isAuthenticated && content.trim()) {
       try {
-        await createPostMutation.mutateAsync({
-          title: selectedType.name === 'Anonymous' ? 'Anonymous Post' : `${selectedType.name} Post`,
+        const result = await createPostMutation.mutateAsync({
           content: content.trim(),
-          type: selectedType.name.toLowerCase().replace(' ', ''),
+          type: selectedType.name.toLowerCase(),
           is_anonymous: selectedType.name === 'Anonymous',
-          tags: selectedCommunity ? [selectedCommunity.name] : []
+          ...(selectedCommunity && { community_id: selectedCommunity.id }),
+          ...(codeSnippet && { code_snippet: codeSnippet }),
+          ...(imagePreview && { image_url: imagePreview }),
+          ...(selectedMood && { mood: selectedMood.name })
         });
+        
+        console.log('Post saved to backend:', result);
+        
+        actions.addNotification({
+          id: Date.now(),
+          type: 'success',
+          message: 'Post saved to backend successfully! 🚀',
+          timestamp: new Date()
+        });
+        
       } catch (error) {
         console.error('Backend save failed:', error);
-        // Continue with local functionality
+        
+        actions.addNotification({
+          id: Date.now(),
+          type: 'warning',
+          message: 'Post created locally, but backend sync failed. Check your connection.',
+          timestamp: new Date()
+        });
       }
+    } else if (!state.isAuthenticated && content.trim()) {
+      actions.addNotification({
+        id: Date.now(),
+        type: 'info',
+        message: 'Post created locally. Sign in to sync with backend.',
+        timestamp: new Date()
+      });
     }
     
     // Reset form
@@ -119,12 +144,14 @@ const CreatePost = () => {
     setCodeSnippet('');
     setShowCodeEditor(false);
     
-    actions.addNotification({
-      id: Date.now(),
-      type: 'post',
-      message: 'Post created successfully! 🎉',
-      timestamp: new Date()
-    });
+    if (!state.isAuthenticated || !content.trim()) {
+      actions.addNotification({
+        id: Date.now(),
+        type: 'post',
+        message: 'Post created successfully! 🎉',
+        timestamp: new Date()
+      });
+    }
   };
   
   const isFormValid = () => {

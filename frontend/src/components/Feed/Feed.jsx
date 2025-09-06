@@ -1,6 +1,7 @@
 // ConnectHub - Main Feed Component
 import React from 'react';
 import { useApp } from '../../context/AppContext.jsx';
+import { usePosts } from '../../hooks/usePosts';
 import CreatePost from '../Post/CreatePost.jsx';
 import PostCard from '../Post/PostCard.jsx';
 import { Filter, TrendingUp, Clock, Flame } from 'lucide-react';
@@ -9,12 +10,50 @@ const Feed = () => {
   const { state, actions } = useApp();
   const [sortBy, setSortBy] = React.useState('recent');
   
+  // Fetch posts from API
+  const { data: apiPosts, isLoading, error } = usePosts();
+  
+  // Combine API posts with local posts
+  const allPosts = React.useMemo(() => {
+    const localPosts = state.filteredPosts || [];
+    const backendPosts = apiPosts?.data || [];
+    
+    // Convert backend posts to frontend format
+    const formattedBackendPosts = backendPosts.map(post => ({
+      id: post.id,
+      userId: post.user_id,
+      username: post.profiles?.username || 'User',
+      displayName: post.profiles?.display_name || 'User',
+      avatar: post.profiles?.avatar_url || '/api/placeholder/40/40',
+      community: post.communities?.name || 'General',
+      mood: post.mood || 'neutral',
+      type: post.type,
+      content: post.content,
+      isAnonymous: post.is_anonymous,
+      timestamp: new Date(post.created_at),
+      likes: post.likes || 0,
+      comments: post.comments || 0,
+      shares: 0,
+      isLiked: false, // Will be updated by individual PostCard components
+      ...(post.image_url && { image: post.image_url }),
+      ...(post.code_snippet && { codeSnippet: post.code_snippet })
+    }));
+    
+    // Merge and deduplicate
+    const combined = [...formattedBackendPosts, ...localPosts];
+    const unique = combined.filter((post, index, self) => 
+      index === self.findIndex(p => p.id === post.id)
+    );
+    
+    return unique;
+  }, [state.filteredPosts, apiPosts]);
+  
   const sortedPosts = React.useMemo(() => {
-    let posts = [...state.filteredPosts];
+    let posts = [...allPosts];
     
     switch (sortBy) {
       case 'popular':
-        posts.sort((a, b) => (b.likes + b.comments + b.shares) - (a.likes + a.comments + a.shares));
+        posts.sort((a, b) => (b.likes + b.comments + (b.shares || 0)) - (a.likes + a.comments + (a.shares || 0)));
         break;
       case 'trending':
         // Sort by engagement rate in the last 24 hours
@@ -28,11 +67,11 @@ const Feed = () => {
         break;
       case 'recent':
       default:
-        posts.sort((a, b) => b.timestamp - a.timestamp);
+        posts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     }
     
     return posts;
-  }, [state.filteredPosts, sortBy]);
+  }, [allPosts, sortBy]);
   
   const clearFilter = () => {
     actions.filterByCommunity(null);
@@ -101,11 +140,32 @@ const Feed = () => {
       
       {/* Posts */}
       <div className="space-y-6">
-        {sortedPosts.length > 0 ? (
+        {isLoading && (
+          <div className="bg-card rounded-xl border border-border shadow-card p-12 text-center">
+            <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading posts...</p>
+          </div>
+        )}
+        
+        {error && (
+          <div className="bg-card rounded-xl border border-border shadow-card p-12 text-center">
+            <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <TrendingUp className="w-8 h-8 text-destructive" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">
+              Failed to load posts
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              {error.message || 'Something went wrong'}
+            </p>
+          </div>
+        )}
+        
+        {!isLoading && !error && sortedPosts.length > 0 ? (
           sortedPosts.map(post => (
             <PostCard key={post.id} post={post} />
           ))
-        ) : (
+        ) : !isLoading && !error ? (
           <div className="bg-card rounded-xl border border-border shadow-card p-12 text-center">
             <div className="w-16 h-16 bg-secondary/50 rounded-full flex items-center justify-center mx-auto mb-4">
               <TrendingUp className="w-8 h-8 text-muted-foreground" />
@@ -128,16 +188,8 @@ const Feed = () => {
               </button>
             )}
           </div>
-        )}
+        ) : null}
       </div>
-      
-      {/* Loading State */}
-      {state.isLoading && (
-        <div className="bg-card rounded-xl border border-border shadow-card p-12 text-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading more posts...</p>
-        </div>
-      )}
     </div>
   );
 };

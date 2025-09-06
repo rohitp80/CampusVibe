@@ -387,7 +387,9 @@ export const moods = [
 ];
 
 export const postTypes = [
-  { id: 1, name: "Public", description: "Share with everyone" },
-  { id: 2, name: "Anonymous", description: "Post anonymously" },
-  { id: 3, name: "Time Capsule", description: "Unlock in the future" }
+  { id: 1, name: "Text", description: "Share your thoughts" },
+  { id: 2, name: "Image", description: "Share with photos" },
+  { id: 3, name: "Code", description: "Share code snippets" },
+  { id: 4, name: "Advice", description: "Ask for or give advice" },
+  { id: 5, name: "Anonymous", description: "Post anonymously" }
 ];

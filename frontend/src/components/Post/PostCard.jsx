@@ -24,8 +24,78 @@ const PostCard = ({ post }) => {
   
   const mood = moods.find(m => m.name === post.mood);
   
-  const handleLike = () => {
-    actions.toggleLike(post.id);
+  const [isLiked, setIsLiked] = React.useState(post.isLiked || false);
+  const [likeCount, setLikeCount] = React.useState(post.likes || 0);
+  const [isLiking, setIsLiking] = React.useState(false);
+
+  // Check if user has liked this post on component mount
+  React.useEffect(() => {
+    const checkLikeStatus = async () => {
+      try {
+        const userId = 'anonymous'; // Use same user ID as in like requests
+        const response = await fetch(`http://localhost:3000/api/posts/${post.id}/liked/${userId}`);
+        if (response.ok) {
+          const result = await response.json();
+          setIsLiked(result.liked);
+        }
+      } catch (error) {
+        console.error('Failed to check like status:', error);
+      }
+    };
+    
+    checkLikeStatus();
+  }, [post.id]);
+
+  const handleLike = async () => {
+    if (isLiking) return; // Prevent double clicks
+    
+    setIsLiking(true);
+    const wasLiked = isLiked;
+    
+    // Optimistic update
+    setIsLiked(!wasLiked);
+    setLikeCount(prev => wasLiked ? prev - 1 : prev + 1);
+    
+    try {
+      const response = await fetch(`http://localhost:3000/api/posts/${post.id}/like`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ user_id: 'anonymous' }) // For now, use anonymous
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setLikeCount(result.likes);
+        setIsLiked(result.liked);
+        
+        actions.addNotification({
+          id: Date.now(),
+          type: 'success',
+          message: result.liked ? 'Post liked!' : 'Post unliked!',
+          timestamp: new Date()
+        });
+      } else {
+        // Revert on error
+        setIsLiked(wasLiked);
+        setLikeCount(prev => wasLiked ? prev + 1 : prev - 1);
+      }
+    } catch (error) {
+      console.error('Like failed:', error);
+      // Revert on error
+      setIsLiked(wasLiked);
+      setLikeCount(prev => wasLiked ? prev + 1 : prev - 1);
+      
+      actions.addNotification({
+        id: Date.now(),
+        type: 'error',
+        message: 'Failed to toggle like',
+        timestamp: new Date()
+      });
+    } finally {
+      setIsLiking(false);
+    }
   };
   
   const handleShare = () => {
@@ -224,18 +294,22 @@ const PostCard = ({ post }) => {
         <div className="flex items-center gap-6">
           <button
             onClick={handleLike}
+            disabled={isLiking}
             className={`
               flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200
-              ${post.isLiked 
-                ? 'text-hub-danger hover:bg-hub-danger/10' 
-                : 'text-muted-foreground hover:text-hub-danger hover:bg-hub-danger/10'
+              ${isLiked 
+                ? 'text-red-500 hover:bg-red-50' 
+                : 'text-muted-foreground hover:text-red-500 hover:bg-red-50'
               }
+              ${isLiking ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
             `}
           >
             <Heart 
-              className={`w-4 h-4 transition-transform ${post.isLiked ? 'fill-current scale-110' : ''}`} 
+              className={`w-4 h-4 transition-transform ${
+                isLiked ? 'fill-red-500 text-red-500 scale-110' : ''
+              } ${isLiking ? 'animate-pulse' : ''}`} 
             />
-            <span className="text-sm font-medium">{post.likes}</span>
+            <span className="text-sm font-medium">{likeCount}</span>
           </button>
           
           <button
