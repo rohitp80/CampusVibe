@@ -37,6 +37,7 @@ const initialState = {
   sidebarCollapsed: false,
   currentPage: 'feed',
   isLoading: false,
+  sessionLoading: true, // Add session loading state
   notifications: []
 };
 
@@ -236,6 +237,9 @@ const appReducer = (state, action) => {
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
       
+    case 'SET_SESSION_LOADING':
+      return { ...state, sessionLoading: action.payload };
+      
     default:
       return state;
   }
@@ -265,11 +269,15 @@ export const AppProvider = ({ children }) => {
           }
         });
       }
+      // Session check complete
+      dispatch({ type: 'SET_SESSION_LOADING', payload: false });
     });
 
     // Listen for auth changes (including OAuth callbacks)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        dispatch({ type: 'LOGOUT' });
+      } else if (session?.user) {
         dispatch({ 
           type: 'LOGIN', 
           payload: {
@@ -285,9 +293,9 @@ export const AppProvider = ({ children }) => {
             isOnline: true
           }
         });
-      } else {
-        dispatch({ type: 'LOGOUT' });
       }
+      // Session change handled
+      dispatch({ type: 'SET_SESSION_LOADING', payload: false });
     });
 
     return () => subscription.unsubscribe();
@@ -330,7 +338,16 @@ export const AppProvider = ({ children }) => {
   
   const actions = {
     login: (user) => dispatch({ type: 'LOGIN', payload: user }),
-    logout: () => dispatch({ type: 'LOGOUT' }),
+    logout: async () => {
+      try {
+        await supabase.auth.signOut();
+        dispatch({ type: 'LOGOUT' });
+      } catch (error) {
+        console.error('Logout error:', error);
+        // Force logout even if Supabase fails
+        dispatch({ type: 'LOGOUT' });
+      }
+    },
     setTheme: (theme) => dispatch({ type: 'SET_THEME', payload: theme }),
     setCurrentPage: (page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: page }),
     toggleSidebar: () => dispatch({ type: 'TOGGLE_SIDEBAR' }),
