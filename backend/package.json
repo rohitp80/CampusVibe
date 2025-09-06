@@ -1,0 +1,27 @@
+{
+  "name": "campusconnect-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "CampusConnect Backend with Supabase",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node test/task1-validation.test.js",
+    "test:task2": "node test/task2-auth.test.js",
+    "test:task3": "node test/task3-posts.test.js",
+    "test:task4": "node test/task4-simple.test.js",
+    "test:task5": "node test/task5-storage.test.js",
+    "test:oauth": "node test/google-auth.test.js",
+    "test:email": "node test/email-test.js",
+    "test:profiles": "node test/enhanced-profiles.test.js",
+    "test:comprehensive": "node test/comprehensive-backend.test.js",
+    "test:all": "node test/run-all-tests.js",
+    "dev": "node src/index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
