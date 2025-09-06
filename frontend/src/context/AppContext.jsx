@@ -5,6 +5,16 @@ import { supabase } from '../lib/supabase';
 
 const AppContext = createContext();
 
+// Load posts from localStorage
+const loadStoredPosts = () => {
+  try {
+    const stored = localStorage.getItem('campusVibe_posts');
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
 const initialState = {
   // Authentication
   isAuthenticated: false,
@@ -14,8 +24,8 @@ const initialState = {
   theme: 'dark',
   
   // Posts and feed
-  posts: initialPosts,
-  filteredPosts: initialPosts,
+  posts: loadStoredPosts(),
+  filteredPosts: loadStoredPosts(),
   selectedCommunity: null,
   
   // Events
@@ -38,7 +48,8 @@ const initialState = {
   currentPage: 'feed',
   isLoading: false,
   sessionLoading: true, // Add session loading state
-  notifications: []
+  notifications: [],
+  viewingProfile: null // Add viewing profile state
 };
 
 const appReducer = (state, action) => {
@@ -76,9 +87,12 @@ const appReducer = (state, action) => {
         shares: 0,
         isLiked: false
       };
+      const newPostsList = [newPost, ...state.posts];
+      // Save to localStorage
+      localStorage.setItem('campusVibe_posts', JSON.stringify(newPostsList));
       return { 
         ...state, 
-        posts: [newPost, ...state.posts],
+        posts: newPostsList,
         filteredPosts: [newPost, ...state.filteredPosts]
       };
       
@@ -93,6 +107,8 @@ const appReducer = (state, action) => {
         }
         return post;
       });
+      // Save to localStorage
+      localStorage.setItem('campusVibe_posts', JSON.stringify(updatedPosts));
       return { 
         ...state, 
         posts: updatedPosts,
@@ -240,6 +256,9 @@ const appReducer = (state, action) => {
     case 'SET_SESSION_LOADING':
       return { ...state, sessionLoading: action.payload };
       
+    case 'SET_VIEWING_PROFILE':
+      return { ...state, viewingProfile: action.payload };
+      
     default:
       return state;
   }
@@ -365,7 +384,8 @@ export const AppProvider = ({ children }) => {
     connectUser: (userId) => dispatch({ type: 'CONNECT_USER', payload: userId }),
     addNotification: (notification) => dispatch({ type: 'ADD_NOTIFICATION', payload: notification }),
     unlockTimeCapsule: (postId) => dispatch({ type: 'UNLOCK_TIME_CAPSULE', payload: postId }),
-    setLoading: (loading) => dispatch({ type: 'SET_LOADING', payload: loading })
+    setLoading: (loading) => dispatch({ type: 'SET_LOADING', payload: loading }),
+    setViewingProfile: (profile) => dispatch({ type: 'SET_VIEWING_PROFILE', payload: profile })
   };
   
   return (

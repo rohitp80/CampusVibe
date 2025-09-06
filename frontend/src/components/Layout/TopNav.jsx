@@ -1,6 +1,7 @@
 // ConnectHub - Top Navigation Bar
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
+import { useSearch } from '../../hooks/useSearch.js';
 import { 
   Menu, 
   Search, 
@@ -15,11 +16,15 @@ import {
 
 const TopNav = () => {
   const { state, actions } = useApp();
+  const { results, loading, searchUsers, setResults } = useSearch();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
   
   const profileRef = useRef(null);
   const notificationsRef = useRef(null);
+  const searchRef = useRef(null);
   
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -29,14 +34,40 @@ const TopNav = () => {
       if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
         setShowNotifications(false);
       }
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowSearchResults(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery) {
+        searchUsers(searchQuery);
+        setShowSearchResults(true);
+      } else {
+        setResults([]);
+        setShowSearchResults(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
   
   const toggleTheme = () => {
     actions.setTheme(state.theme === 'dark' ? 'light' : 'dark');
+  };
+
+  const handleUserSelect = (user) => {
+    setSearchQuery('');
+    setShowSearchResults(false);
+    setResults([]);
+    // Navigate to user profile
+    actions.setViewingProfile(user);
+    actions.setCurrentPage('profile');
   };
   
   return (
@@ -53,13 +84,53 @@ const TopNav = () => {
           </button>
           
           {/* Search Bar */}
-          <div className="relative hidden sm:block">
+          <div className="relative hidden sm:block" ref={searchRef}>
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search ConnectHub..."
+              placeholder="Search users..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-64 lg:w-80 pl-10 pr-4 py-2 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
             />
+            
+            {/* Search Results Dropdown */}
+            {showSearchResults && (
+              <div className="absolute top-12 left-0 w-full bg-card border border-border rounded-xl shadow-elevated max-h-80 overflow-y-auto z-50">
+                {loading ? (
+                  <div className="p-4 text-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
+                  </div>
+                ) : results.length > 0 ? (
+                  <div className="p-2">
+                    {results.map(user => (
+                      <button
+                        key={user.id}
+                        onClick={() => handleUserSelect(user)}
+                        className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors text-left"
+                      >
+                        <img
+                          src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
+                          alt={user.display_name}
+                          className="w-10 h-10 rounded-full"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{user.display_name}</p>
+                          <p className="text-xs text-muted-foreground truncate">@{user.username}</p>
+                          {user.university && (
+                            <p className="text-xs text-muted-foreground truncate">{user.university}</p>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : searchQuery.length >= 2 ? (
+                  <div className="p-4 text-center text-muted-foreground text-sm">
+                    No users found
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
         </div>
         

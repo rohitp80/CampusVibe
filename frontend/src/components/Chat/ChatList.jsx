@@ -1,34 +1,31 @@
 // ConnectHub - Chat List Component
 import React from 'react';
 import { useApp } from '../../context/AppContext.jsx';
-import { chatRooms } from '../../data/dummyData.js';
+import { useChat } from '../../hooks/useChat.js';
 import { 
   MessageCircle, 
   Users, 
-  BookOpen, 
   Plus,
-  Search,
-  Pin
+  Search
 } from 'lucide-react';
 
 const ChatList = () => {
   const { state, actions } = useApp();
+  const { chatRooms, createChatRoom, loading } = useChat();
   const [searchTerm, setSearchTerm] = React.useState('');
   
   const filteredRooms = chatRooms.filter(room =>
     room.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
   
-  const formatLastMessageTime = (timestamp) => {
-    const now = new Date();
-    const diff = now - timestamp;
-    const minutes = Math.floor(diff / (1000 * 60));
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    
-    if (minutes < 60) return `${minutes}m`;
-    if (hours < 24) return `${hours}h`;
-    return `${days}d`;
+  const handleCreateChat = async () => {
+    const name = prompt('Enter chat name:');
+    if (name) {
+      const newRoom = await createChatRoom(name);
+      if (newRoom) {
+        actions.setActiveChat(newRoom.id);
+      }
+    }
   };
   
   return (
@@ -48,7 +45,10 @@ const ChatList = () => {
             </div>
           </div>
           
-          <button className="p-2 hover:bg-secondary/50 rounded-lg transition-colors">
+          <button 
+            onClick={handleCreateChat}
+            className="p-2 hover:bg-secondary/50 rounded-lg transition-colors"
+          >
             <Plus className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
@@ -68,7 +68,12 @@ const ChatList = () => {
       
       {/* Chat List */}
       <div className="flex-1 overflow-y-auto">
-        {filteredRooms.length > 0 ? (
+        {loading ? (
+          <div className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading chats...</p>
+          </div>
+        ) : filteredRooms.length > 0 ? (
           <div className="space-y-1 p-4">
             {filteredRooms.map(room => (
               <button
@@ -83,14 +88,11 @@ const ChatList = () => {
                 `}
               >
                 <div className="relative flex-shrink-0">
-                  <img 
-                    src={room.avatar}
-                    alt={room.name}
-                    className="w-12 h-12 rounded-full object-cover"
-                  />
-                  {room.isActive && (
-                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-hub-success rounded-full border-2 border-background"></div>
-                  )}
+                  <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center">
+                    <span className="text-sm font-semibold text-primary">
+                      {room.name.slice(0, 2).toUpperCase()}
+                    </span>
+                  </div>
                 </div>
                 
                 <div className="flex-1 min-w-0">
@@ -98,26 +100,20 @@ const ChatList = () => {
                     <h3 className="font-semibold text-foreground truncate">
                       {room.name}
                     </h3>
-                    {room.type === 'study' && (
-                      <BookOpen className="w-3 h-3 text-hub-accent flex-shrink-0" />
-                    )}
-                    {room.hasNotes && (
-                      <Pin className="w-3 h-3 text-hub-warning flex-shrink-0" />
-                    )}
                   </div>
                   
                   <p className="text-sm text-muted-foreground truncate mb-1">
-                    {room.lastMessage}
+                    {room.messages?.[0]?.content || 'No messages yet'}
                   </p>
                   
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Users className="w-3 h-3" />
-                      <span>{room.participants}</span>
+                      <span>{room.chat_participants?.length || 0}</span>
                     </div>
                     
                     <span className="text-xs text-muted-foreground">
-                      {formatLastMessageTime(room.timestamp)}
+                      {new Date(room.updated_at).toLocaleDateString()}
                     </span>
                   </div>
                 </div>
@@ -138,27 +134,15 @@ const ChatList = () => {
                 : 'Start a conversation to get connected'
               }
             </p>
-            <button className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity">
+            <button 
+              onClick={handleCreateChat}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity"
+            >
               <Plus className="w-4 h-4 inline mr-2" />
               New Chat
             </button>
           </div>
         )}
-      </div>
-      
-      {/* Quick Actions */}
-      <div className="p-4 border-t border-border">
-        <div className="grid grid-cols-2 gap-2">
-          <button className="flex items-center gap-2 p-3 bg-gradient-to-r from-hub-primary/10 to-hub-secondary/10 rounded-lg hover:from-hub-primary/20 hover:to-hub-secondary/20 transition-all">
-            <BookOpen className="w-4 h-4 text-hub-accent" />
-            <span className="text-sm font-medium text-foreground">Study Group</span>
-          </button>
-          
-          <button className="flex items-center gap-2 p-3 bg-gradient-to-r from-hub-accent/10 to-hub-success/10 rounded-lg hover:from-hub-accent/20 hover:to-hub-success/20 transition-all">
-            <Users className="w-4 h-4 text-hub-primary" />
-            <span className="text-sm font-medium text-foreground">Community</span>
-          </button>
-        </div>
       </div>
     </div>
   );
