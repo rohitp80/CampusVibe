@@ -5,7 +5,6 @@ import { useChat } from '../../hooks/useChat.js';
 import { 
   MessageCircle, 
   Users, 
-  Plus,
   Search
 } from 'lucide-react';
 
@@ -44,13 +43,6 @@ const ChatList = () => {
               </p>
             </div>
           </div>
-          
-          <button 
-            onClick={handleCreateChat}
-            className="p-2 hover:bg-secondary/50 rounded-lg transition-colors"
-          >
-            <Plus className="w-5 h-5 text-muted-foreground" />
-          </button>
         </div>
         
         {/* Search */}
@@ -134,13 +126,6 @@ const ChatList = () => {
                 : 'Start a conversation to get connected'
               }
             </p>
-            <button 
-              onClick={handleCreateChat}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity"
-            >
-              <Plus className="w-4 h-4 inline mr-2" />
-              New Chat
-            </button>
           </div>
         )}
       </div>

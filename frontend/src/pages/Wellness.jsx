@@ -47,41 +47,6 @@ const Wellness = () => {
     sleepAverage: "7.2h"
   };
   
-  const resources = [
-    {
-      id: 1,
-      title: "Mindfulness Meditation",
-      description: "5-minute guided meditation for stress relief",
-      duration: "5 min",
-      type: "Meditation",
-      color: "#10B981"
-    },
-    {
-      id: 2,
-      title: "Study Break Exercises",
-      description: "Quick exercises to do between study sessions",
-      duration: "10 min",
-      type: "Exercise",
-      color: "#3B82F6"
-    },
-    {
-      id: 3,
-      title: "Sleep Hygiene Tips",
-      description: "Improve your sleep quality with these tips",
-      duration: "Read",
-      type: "Education",
-      color: "#8B5CF6"
-    },
-    {
-      id: 4,
-      title: "Anxiety Management",
-      description: "Breathing exercises for managing anxiety",
-      duration: "8 min",
-      type: "Breathing",
-      color: "#F59E0B"
-    }
-  ];
-  
   const upcomingEvents = [
     {
       id: 1,
@@ -305,51 +270,6 @@ const Wellness = () => {
             )}
           </div>
           
-          {/* Wellness Resources */}
-          <div className="bg-card rounded-xl border border-border shadow-card p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-hub-warning" />
-              Wellness Resources
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {resources.map(resource => (
-                <div 
-                  key={resource.id}
-                  className="bg-gradient-to-br from-secondary/10 to-accent/5 rounded-lg p-4 border border-border/50 hover-lift cursor-pointer"
-                >
-                  <div className="flex items-start gap-3 mb-3">
-                    <div 
-                      className="w-8 h-8 rounded-lg flex items-center justify-center"
-                      style={{ backgroundColor: resource.color + '20' }}
-                    >
-                      {resource.type === 'Meditation' && <Brain className="w-4 h-4" style={{ color: resource.color }} />}
-                      {resource.type === 'Exercise' && <Activity className="w-4 h-4" style={{ color: resource.color }} />}
-                      {resource.type === 'Education' && <Moon className="w-4 h-4" style={{ color: resource.color }} />}
-                      {resource.type === 'Breathing' && <Heart className="w-4 h-4" style={{ color: resource.color }} />}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-foreground text-sm mb-1">
-                        {resource.title}
-                      </h4>
-                      <p className="text-xs text-muted-foreground">
-                        {resource.description}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs px-2 py-1 bg-secondary/50 text-secondary-foreground rounded-full">
-                      {resource.type}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {resource.duration}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
         
         {/* Right Column */}
