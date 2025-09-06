@@ -21,7 +21,6 @@ const Sidebar = () => {
   const navigationItems = [
     { id: 'feed', label: 'Feed', icon: Home },
     { id: 'explore', label: 'Explore', icon: Search },
-    { id: 'skills', label: 'Skills', icon: BookOpen },
     { id: 'local', label: 'Local', icon: MapPin },
     { id: 'wellness', label: 'Wellness', icon: Heart },
     { id: 'chat', label: 'Chat', icon: MessageCircle }

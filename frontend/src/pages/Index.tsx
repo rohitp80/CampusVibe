@@ -6,7 +6,6 @@ import Sidebar from '../components/Layout/Sidebar.jsx';
 import RightSidebar from '../components/Layout/RightSidebar.jsx';
 import Feed from '../components/Feed/Feed.jsx';
 import Explore from './Explore.jsx';
-import Skills from './Skills.jsx';
 import Local from './Local.jsx';
 import Wellness from './Wellness.jsx';
 import Profile from './Profile.jsx';
@@ -18,7 +17,6 @@ const Index = () => {
   const renderPage = () => {
     switch (state.currentPage) {
       case 'explore': return <Explore />;
-      case 'skills': return <Skills />;
       case 'local': return <Local />;
       case 'wellness': return <Wellness />;
       case 'profile': return <Profile />;
