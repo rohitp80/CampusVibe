@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppProvider, useApp } from "./context/AppContext";
 import { queryClient } from "./lib/queryClient";
 import Index from "./pages/Index";
+import PostDetail from "./pages/PostDetail";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -37,6 +38,7 @@ const AppContent = () => {
     >
       <Routes>
         <Route path="/" element={<Index />} />
+        <Route path="/post/:postId" element={<PostDetail />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>

@@ -11,7 +11,7 @@ const Feed = () => {
   const [sortBy, setSortBy] = React.useState('recent');
   
   // Fetch posts from API
-  const { data: apiPosts, isLoading, error } = usePosts();
+  const { data: apiPosts, isLoading, error, refetch } = usePosts();
   
   // Combine API posts with local posts
   const allPosts = React.useMemo(() => {
@@ -163,7 +163,11 @@ const Feed = () => {
         
         {!isLoading && !error && sortedPosts.length > 0 ? (
           sortedPosts.map(post => (
-            <PostCard key={post.id} post={post} />
+            <PostCard 
+              key={post.id} 
+              post={post} 
+              onPostDeleted={() => refetch()}
+            />
           ))
         ) : !isLoading && !error ? (
           <div className="bg-card rounded-xl border border-border shadow-card p-12 text-center">

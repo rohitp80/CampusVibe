@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from './lib/supabase.js';
 
 // Load environment variables
 dotenv.config();
@@ -9,24 +9,16 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Supabase configuration
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
+// Middleware
+app.use(cors());
+app.use(express.json());
 
-let supabase = null;
-
-if (supabaseUrl && supabaseKey) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseKey);
-    console.log('✅ Supabase client initialized');
-  } catch (error) {
-    console.warn('⚠️  Supabase initialization failed:', error.message);
-  }
+// Test Supabase connection
+if (supabase) {
+  console.log('✅ Supabase client initialized');
 } else {
-  console.log('⚠️  Missing Supabase credentials - running in demo mode');
+  console.log('⚠️ Supabase client not available');
 }
-
-export { supabase };
 
 // Middleware
 app.use(cors({

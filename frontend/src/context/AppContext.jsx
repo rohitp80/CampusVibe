@@ -16,6 +16,7 @@ const initialState = {
   // Posts and feed
   posts: initialPosts,
   filteredPosts: initialPosts,
+  savedPosts: JSON.parse(localStorage.getItem('savedPosts') || '[]'),
   selectedCommunity: null,
   
   // Events
@@ -80,6 +81,31 @@ const appReducer = (state, action) => {
         ...state, 
         posts: [newPost, ...state.posts],
         filteredPosts: [newPost, ...state.filteredPosts]
+      };
+      
+    case 'DELETE_POST':
+      return {
+        ...state,
+        posts: state.posts.filter(post => post.id !== action.payload),
+        filteredPosts: state.filteredPosts?.filter(post => post.id !== action.payload)
+      };
+
+    case 'SAVE_POST':
+      const isAlreadySaved = state.savedPosts.some(p => p.id === action.payload.id);
+      if (isAlreadySaved) return state;
+      const newSavedPosts = [...state.savedPosts, action.payload];
+      localStorage.setItem('savedPosts', JSON.stringify(newSavedPosts));
+      return {
+        ...state,
+        savedPosts: newSavedPosts
+      };
+
+    case 'UNSAVE_POST':
+      const filteredSavedPosts = state.savedPosts.filter(post => post.id !== action.payload);
+      localStorage.setItem('savedPosts', JSON.stringify(filteredSavedPosts));
+      return {
+        ...state,
+        savedPosts: filteredSavedPosts
       };
       
     case 'TOGGLE_LIKE':
@@ -352,6 +378,9 @@ export const AppProvider = ({ children }) => {
     setCurrentPage: (page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: page }),
     toggleSidebar: () => dispatch({ type: 'TOGGLE_SIDEBAR' }),
     addPost: (post) => dispatch({ type: 'ADD_POST', payload: post }),
+    deletePost: (postId) => dispatch({ type: 'DELETE_POST', payload: postId }),
+    savePost: (post) => dispatch({ type: 'SAVE_POST', payload: post }),
+    unsavePost: (postId) => dispatch({ type: 'UNSAVE_POST', payload: postId }),
     toggleLike: (postId) => dispatch({ type: 'TOGGLE_LIKE', payload: postId }),
     addComment: (postId, comment) => dispatch({ type: 'ADD_COMMENT', payload: { postId, comment } }),
     filterByCommunity: (community) => dispatch({ type: 'FILTER_BY_COMMUNITY', payload: community }),
