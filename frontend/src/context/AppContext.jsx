@@ -71,8 +71,8 @@ const initialState = {
   sessionLoading: true, // Add session loading state
   notifications: [],
   viewingProfile: null,
-  friendRequests: [],
-  friends: [] // Add viewing profile state
+  friendRequests: JSON.parse(localStorage.getItem('campusVibe_globalFriendRequests') || '[]'),
+  friends: JSON.parse(localStorage.getItem('campusVibe_globalFriends') || '[]') // Add viewing profile state
 };
 
 const appReducer = (state, action) => {
@@ -357,28 +357,46 @@ const appReducer = (state, action) => {
       };
 
     case 'SEND_FRIEND_REQUEST':
+      const newRequest = {
+        id: Date.now(),
+        from: state.currentUser.username,
+        to: action.payload.username,
+        status: 'pending'
+      };
+      const updatedRequests = [...state.friendRequests, newRequest];
+      // Store globally so all users can see requests
+      localStorage.setItem('campusVibe_globalFriendRequests', JSON.stringify(updatedRequests));
       return {
         ...state,
-        friendRequests: [...state.friendRequests, {
-          id: Date.now(),
-          from: state.currentUser.username,
-          to: action.payload.username,
-          status: 'pending'
-        }]
+        friendRequests: updatedRequests
       };
 
     case 'ACCEPT_FRIEND_REQUEST':
       const request = state.friendRequests.find(req => req.id === action.payload);
+      const remainingRequests = state.friendRequests.filter(req => req.id !== action.payload);
+      const updatedFriends = [...state.friends, { username: request.from }];
+      // Update global storage
+      localStorage.setItem('campusVibe_globalFriendRequests', JSON.stringify(remainingRequests));
+      localStorage.setItem('campusVibe_globalFriends', JSON.stringify(updatedFriends));
       return {
         ...state,
-        friendRequests: state.friendRequests.filter(req => req.id !== action.payload),
-        friends: [...state.friends, { username: request.from }]
+        friendRequests: remainingRequests,
+        friends: updatedFriends
       };
 
     case 'REJECT_FRIEND_REQUEST':
+      const filteredRequests = state.friendRequests.filter(req => req.id !== action.payload);
+      localStorage.setItem('campusVibe_globalFriendRequests', JSON.stringify(filteredRequests));
       return {
         ...state,
-        friendRequests: state.friendRequests.filter(req => req.id !== action.payload)
+        friendRequests: filteredRequests
+      };
+
+    case 'REFRESH_FRIEND_DATA':
+      return {
+        ...state,
+        friendRequests: JSON.parse(localStorage.getItem('campusVibe_globalFriendRequests') || '[]'),
+        friends: JSON.parse(localStorage.getItem('campusVibe_globalFriends') || '[]')
       };
       
     case 'SET_LOADING':
@@ -601,9 +619,17 @@ export const AppProvider = ({ children }) => {
     sendFriendRequest: (user) => dispatch({ type: 'SEND_FRIEND_REQUEST', payload: user }),
     acceptFriendRequest: (requestId) => dispatch({ type: 'ACCEPT_FRIEND_REQUEST', payload: requestId }),
     rejectFriendRequest: (requestId) => dispatch({ type: 'REJECT_FRIEND_REQUEST', payload: requestId }),
+    refreshFriendData: () => dispatch({ type: 'REFRESH_FRIEND_DATA' }),
     setLoading: (loading) => dispatch({ type: 'SET_LOADING', payload: loading }),
     setViewingProfile: (profile) => dispatch({ type: 'SET_VIEWING_PROFILE', payload: profile })
   };
+
+  // Refresh friend data when user changes
+  useEffect(() => {
+    if (state.currentUser) {
+      dispatch({ type: 'REFRESH_FRIEND_DATA' });
+    }
+  }, [state.currentUser?.username]);
   
   return (
     <AppContext.Provider value={{ state, actions }}>
