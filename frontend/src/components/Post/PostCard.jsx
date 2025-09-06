@@ -21,7 +21,78 @@ const PostCard = ({ post }) => {
   const [showComments, setShowComments] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [commentCount, setCommentCount] = useState(post.comments || 0);
+  const [newComment, setNewComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingComments, setLoadingComments] = useState(false);
   
+  // Fetch comments when showing comments section
+  const fetchComments = async () => {
+    if (loadingComments) return;
+    
+    setLoadingComments(true);
+    try {
+      const response = await fetch(`http://localhost:3000/api/posts/${post.id}/comments`);
+      if (response.ok) {
+        const result = await response.json();
+        setComments(result.data || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch comments:', error);
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
+  // Submit new comment
+  const handleSubmitComment = async () => {
+    if (!newComment.trim() || isSubmitting) return;
+    
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`http://localhost:3000/api/posts/${post.id}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer dummy-token' // Replace with real auth
+        },
+        body: JSON.stringify({ content: newComment.trim() })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setComments(prev => [...prev, result.data]);
+        setCommentCount(prev => prev + 1);
+        setNewComment('');
+        
+        actions.addNotification({
+          id: Date.now(),
+          type: 'success',
+          message: 'Comment added!',
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Failed to submit comment:', error);
+      actions.addNotification({
+        id: Date.now(),
+        type: 'error',
+        message: 'Failed to add comment',
+        timestamp: new Date()
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Fetch comments when comments section is opened
+  React.useEffect(() => {
+    if (showComments && comments.length === 0) {
+      fetchComments();
+    }
+  }, [showComments]);
+
   const mood = moods.find(m => m.name === post.mood);
   
   const [isLiked, setIsLiked] = React.useState(post.isLiked || false);
@@ -317,7 +388,7 @@ const PostCard = ({ post }) => {
             className="flex items-center gap-2 px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-all duration-200"
           >
             <MessageCircle className="w-4 h-4" />
-            <span className="text-sm font-medium">{post.comments}</span>
+            <span className="text-sm font-medium">{commentCount}</span>
           </button>
           
           <button
@@ -333,66 +404,67 @@ const PostCard = ({ post }) => {
       {/* Comments Section */}
       {showComments && (
         <div className="mt-4 pt-4 border-t border-border/50 space-y-3 animate-slide-up">
-          {/* Display actual comments */}
-          {post.commentsList && post.commentsList.length > 0 && post.commentsList.map(comment => (
+          {/* Loading State */}
+          {loadingComments && (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin w-5 h-5 border-2 border-primary border-t-transparent rounded-full"></div>
+              <span className="ml-2 text-sm text-muted-foreground">Loading comments...</span>
+            </div>
+          )}
+          
+          {/* Real Comments */}
+          {!loadingComments && comments.map(comment => (
             <div key={comment.id} className="flex gap-3">
               <img 
-                src={`https://picsum.photos/seed/${comment.author}/32/32`}
-                alt={comment.author}
+                src={comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.profiles?.username}`}
+                alt={comment.profiles?.display_name || 'User'}
                 className="w-8 h-8 rounded-full"
               />
               <div className="flex-1 bg-secondary/30 rounded-lg px-3 py-2">
-                <p className="text-sm text-foreground">{comment.text}</p>
+                <p className="text-sm text-foreground">{comment.content}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {comment.author} • {new Date(comment.timestamp).toLocaleTimeString()}
+                  {comment.profiles?.display_name || comment.profiles?.username || 'User'} • {new Date(comment.created_at).toLocaleTimeString()}
                 </p>
               </div>
             </div>
           ))}
           
-          {/* Static comments for demo */}
-          <div className="flex gap-3">
-            <img 
-              src="https://picsum.photos/seed/commenter1/32/32" 
-              alt="Commenter"
-              className="w-8 h-8 rounded-full"
-            />
-            <div className="flex-1 bg-secondary/30 rounded-lg px-3 py-2">
-              <p className="text-sm text-foreground">Great post! Really helpful insights.</p>
-              <p className="text-xs text-muted-foreground mt-1">2h ago</p>
+          {/* No Comments Message */}
+          {!loadingComments && comments.length === 0 && (
+            <div className="text-center py-4">
+              <p className="text-sm text-muted-foreground">No comments yet. Be the first to comment!</p>
             </div>
-          </div>
-          
-          <div className="flex gap-3">
-            <img 
-              src="https://picsum.photos/seed/commenter2/32/32" 
-              alt="Commenter"
-              className="w-8 h-8 rounded-full"
-            />
-            <div className="flex-1 bg-secondary/30 rounded-lg px-3 py-2">
-              <p className="text-sm text-foreground">Thanks for sharing! 🙌</p>
-              <p className="text-xs text-muted-foreground mt-1">1h ago</p>
-            </div>
-          </div>
+          )}
           
           {/* Add Comment Input */}
           <div className="flex gap-3 pt-2">
             <img 
-              src="https://picsum.photos/seed/currentuser/32/32" 
+              src="https://api.dicebear.com/7.x/avataaars/svg?seed=current-user"
               alt="You"
               className="w-8 h-8 rounded-full"
             />
-            <input
-              type="text"
-              placeholder="Write a comment..."
-              className="flex-1 bg-secondary/30 border border-border/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-              onKeyPress={(e) => {
-                if (e.key === 'Enter' && e.target.value.trim()) {
-                  actions.addComment(post.id, e.target.value);
-                  e.target.value = '';
-                }
-              }}
-            />
+            <div className="flex-1 flex gap-2">
+              <input
+                type="text"
+                placeholder="Write a comment..."
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                className="flex-1 bg-secondary/30 border border-border/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSubmitComment();
+                  }
+                }}
+                disabled={isSubmitting}
+              />
+              <button
+                onClick={handleSubmitComment}
+                disabled={!newComment.trim() || isSubmitting}
+                className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? '...' : 'Post'}
+              </button>
+            </div>
           </div>
         </div>
       )}
