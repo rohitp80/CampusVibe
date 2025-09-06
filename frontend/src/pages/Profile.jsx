@@ -24,6 +24,7 @@ import {
 const Profile = () => {
   const { state, actions } = useApp();
   const [isEditing, setIsEditing] = useState(false);
+  const [activeTab, setActiveTab] = useState('posts');
   
   // Use viewingProfile if available, otherwise use currentUser
   const profileUser = state.viewingProfile || state.currentUser;
@@ -444,19 +445,47 @@ const Profile = () => {
           )}
         </div>
         
-        {/* User Posts Section */}
-        <div className="bg-card border border-border rounded-xl p-8 mt-6">
-          <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
-            <BookOpen className="w-5 h-5" />
-            Posts ({(state.posts || []).filter(post => 
-              (post.author === profileUser.username || post.username === profileUser.username) && !post.isAnonymous
-            ).length})
-          </h2>
+        {/* Tabs Section */}
+        <div className="bg-card border border-border rounded-xl mt-6">
+          <div className="flex border-b border-border">
+            <button
+              onClick={() => setActiveTab('posts')}
+              className={`px-6 py-3 font-medium transition-colors ${
+                activeTab === 'posts'
+                  ? 'text-primary border-b-2 border-primary bg-primary/5'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Posts ({(state.posts || []).filter(post => 
+                (post.author === profileUser.username || post.username === profileUser.username) && !post.isAnonymous
+              ).length})
+            </button>
+            {isOwnProfile && (
+              <button
+                onClick={() => setActiveTab('requests')}
+                className={`px-6 py-3 font-medium transition-colors ${
+                  activeTab === 'requests'
+                    ? 'text-primary border-b-2 border-primary bg-primary/5'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Friend Requests ({(state.friendRequests || []).filter(req => req.to === state.currentUser?.username).length})
+              </button>
+            )}
+          </div>
           
-          <div className="space-y-6">
-            {(state.posts || [])
-              .filter(post => (post.author === profileUser.username || post.username === profileUser.username) && !post.isAnonymous)
-              .map(post => (
+          <div className="p-8">
+            {activeTab === 'posts' && (
+              <div>
+                <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
+                  <BookOpen className="w-5 h-5" />
+                  Posts
+                </h2>
+                
+                <div className="space-y-6">
+                  {(state.posts || [])
+                    .filter(post => (post.author === profileUser.username || post.username === profileUser.username) && !post.isAnonymous)
+                    .map(post => (
                 <div key={post.id} className="bg-secondary/30 rounded-lg p-6 border border-border/50">
                   <div className="flex items-start gap-3">
                     <img
@@ -490,6 +519,67 @@ const Profile = () => {
             
             {(state.posts || []).filter(post => (post.author === profileUser.username || post.username === profileUser.username) && !post.isAnonymous).length === 0 && (
               <p className="text-muted-foreground text-center py-8">No posts yet</p>
+            )}
+                </div>
+              </div>
+            )}
+            
+            {activeTab === 'requests' && isOwnProfile && (
+              <div>
+                <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
+                  <UserPlus className="w-6 h-6" />
+                  Friend Requests
+                </h2>
+                
+                {(() => {
+                  const incomingRequests = (state.friendRequests || []).filter(req => 
+                    req.to === state.currentUser?.username && req.status === 'pending'
+                  );
+                  
+                  return incomingRequests.length === 0 ? (
+                    <div className="text-center py-12">
+                      <UserPlus className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                      <h3 className="text-lg font-medium text-muted-foreground mb-2">No friend requests</h3>
+                      <p className="text-muted-foreground">You don't have any pending friend requests.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {incomingRequests.map(request => (
+                        <div key={request.id} className="flex items-center justify-between bg-secondary/30 rounded-lg p-4">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${request.from}`}
+                              alt={request.from}
+                              className="w-12 h-12 rounded-full"
+                            />
+                            <div>
+                              <p className="font-medium">{request.from}</p>
+                              <p className="text-sm text-muted-foreground">wants to connect with you</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => actions.acceptFriendRequest(request.id)}
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                            >
+                              <Check className="w-4 h-4" />
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => actions.rejectFriendRequest(request.id)}
+                              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                            >
+                              <X className="w-4 h-4" />
+                              Decline
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
             )}
           </div>
         </div>
