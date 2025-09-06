@@ -16,7 +16,9 @@ import {
   Briefcase,
   Link,
   Shield,
-  Bell
+  Bell,
+  UserPlus,
+  Check
 } from 'lucide-react';
 
 const Profile = () => {
@@ -26,6 +28,11 @@ const Profile = () => {
   // Use viewingProfile if available, otherwise use currentUser
   const profileUser = state.viewingProfile || state.currentUser;
   const isOwnProfile = !state.viewingProfile;
+  
+  const isFriend = state.friends?.some(f => f.username === profileUser.username);
+  const hasPendingRequest = state.friendRequests?.some(req => 
+    req.from === state.currentUser?.username && req.to === profileUser.username
+  );
   const [editData, setEditData] = useState({
     displayName: state.currentUser?.displayName || '',
     bio: state.currentUser?.bio || '',
@@ -133,15 +140,37 @@ const Profile = () => {
               </div>
               
               {!isOwnProfile && (
-                <button
-                  onClick={() => {
-                    actions.setViewingProfile(null);
-                    actions.setCurrentPage('feed');
-                  }}
-                  className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors flex items-center gap-2"
-                >
-                  ← Back
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      actions.setViewingProfile(null);
+                      actions.setCurrentPage('feed');
+                    }}
+                    className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+                  >
+                    ← Back
+                  </button>
+                  
+                  {isFriend ? (
+                    <button className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2" disabled>
+                      <Check className="w-4 h-4" />
+                      Connected
+                    </button>
+                  ) : hasPendingRequest ? (
+                    <button className="px-4 py-2 bg-yellow-600 text-white rounded-lg flex items-center gap-2" disabled>
+                      <UserPlus className="w-4 h-4" />
+                      Request Sent
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => actions.sendFriendRequest(profileUser)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      Connect
+                    </button>
+                  )}
+                </div>
               )}
               
               {isOwnProfile && (

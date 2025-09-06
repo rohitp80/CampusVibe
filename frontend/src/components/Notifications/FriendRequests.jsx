@@ -11,9 +11,7 @@ const FriendRequests = () => {
     req.to === state.currentUser.username && req.status === 'pending'
   );
 
-  if (incomingRequests.length === 0) {
-    return null;
-  }
+  if (incomingRequests.length === 0) return null;
 
   return (
     <div className="bg-card border border-border rounded-xl p-4 mb-4">
@@ -33,21 +31,21 @@ const FriendRequests = () => {
               />
               <div>
                 <p className="font-medium">{request.from}</p>
-                <p className="text-sm text-muted-foreground">wants to connect with you</p>
+                <p className="text-sm text-muted-foreground">wants to connect</p>
               </div>
             </div>
             
             <div className="flex gap-2">
               <button
                 onClick={() => actions.acceptFriendRequest(request.id)}
-                className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1"
+                className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-1"
               >
                 <Check className="w-4 h-4" />
                 Accept
               </button>
               <button
                 onClick={() => actions.rejectFriendRequest(request.id)}
-                className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1"
+                className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1"
               >
                 <X className="w-4 h-4" />
                 Decline

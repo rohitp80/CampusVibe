@@ -70,7 +70,9 @@ const initialState = {
   isLoading: false,
   sessionLoading: true, // Add session loading state
   notifications: [],
-  viewingProfile: null // Add viewing profile state
+  viewingProfile: null,
+  friendRequests: [],
+  friends: [] // Add viewing profile state
 };
 
 const appReducer = (state, action) => {
@@ -334,6 +336,31 @@ const appReducer = (state, action) => {
             : post
         )
       };
+
+    case 'SEND_FRIEND_REQUEST':
+      return {
+        ...state,
+        friendRequests: [...state.friendRequests, {
+          id: Date.now(),
+          from: state.currentUser.username,
+          to: action.payload.username,
+          status: 'pending'
+        }]
+      };
+
+    case 'ACCEPT_FRIEND_REQUEST':
+      const request = state.friendRequests.find(req => req.id === action.payload);
+      return {
+        ...state,
+        friendRequests: state.friendRequests.filter(req => req.id !== action.payload),
+        friends: [...state.friends, { username: request.from }]
+      };
+
+    case 'REJECT_FRIEND_REQUEST':
+      return {
+        ...state,
+        friendRequests: state.friendRequests.filter(req => req.id !== action.payload)
+      };
       
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
@@ -486,6 +513,9 @@ export const AppProvider = ({ children }) => {
     connectUser: (userId) => dispatch({ type: 'CONNECT_USER', payload: userId }),
     addNotification: (notification) => dispatch({ type: 'ADD_NOTIFICATION', payload: notification }),
     unlockTimeCapsule: (postId) => dispatch({ type: 'UNLOCK_TIME_CAPSULE', payload: postId }),
+    sendFriendRequest: (user) => dispatch({ type: 'SEND_FRIEND_REQUEST', payload: user }),
+    acceptFriendRequest: (requestId) => dispatch({ type: 'ACCEPT_FRIEND_REQUEST', payload: requestId }),
+    rejectFriendRequest: (requestId) => dispatch({ type: 'REJECT_FRIEND_REQUEST', payload: requestId }),
     setLoading: (loading) => dispatch({ type: 'SET_LOADING', payload: loading }),
     setViewingProfile: (profile) => dispatch({ type: 'SET_VIEWING_PROFILE', payload: profile })
   };
