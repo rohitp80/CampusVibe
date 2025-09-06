@@ -11,6 +11,10 @@ const FriendRequests = () => {
     req.to === state.currentUser.username && req.status === 'pending'
   );
 
+  console.log('FriendRequests - Current user:', state.currentUser.username);
+  console.log('FriendRequests - All requests:', state.friendRequests);
+  console.log('FriendRequests - Incoming requests:', incomingRequests);
+
   if (incomingRequests.length === 0) return null;
 
   return (
