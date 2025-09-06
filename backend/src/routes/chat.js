@@ -10,6 +10,43 @@ const supabaseUrl = process.env.SUPABASE_URL || 'https://your-project.supabase.c
 const supabaseKey = process.env.SUPABASE_ANON_KEY || 'your-anon-key';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Middleware to check community membership
+const checkMembership = async (req, res, next) => {
+  try {
+    const { communityId } = req.params;
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Authorization required' });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    
+    if (error || !user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    // Check if user is member of community using direct query
+    const { data: membership, error: membershipError } = await supabase
+      .from('community_members')
+      .select('role')
+      .eq('community_id', communityId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (membershipError || !membership) {
+      return res.status(403).json({ error: 'Must be a community member to access chat' });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error('Membership check error:', error);
+    res.status(500).json({ error: 'Failed to verify membership' });
+  }
+};
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -38,8 +75,8 @@ const upload = multer({
   }
 });
 
-// Get messages for a community
-router.get('/community/:communityId/messages', async (req, res) => {
+// Get messages for a community (PROTECTED - members only)
+router.get('/community/:communityId/messages', checkMembership, async (req, res) => {
   try {
     const { communityId } = req.params;
     
@@ -53,26 +90,8 @@ router.get('/community/:communityId/messages', async (req, res) => {
 
     if (error) {
       console.error('Supabase error:', error);
-      // Return mock data on error
-      const mockMessages = [
-        {
-          id: 1,
-          community_id: communityId,
-          user_id: 'user1',
-          username: 'alex_codes',
-          message: 'Welcome to the community! 🎉',
-          created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString()
-        },
-        {
-          id: 2,
-          community_id: communityId,
-          user_id: 'user2', 
-          username: 'sarah_studies',
-          message: 'Great to be here! Let\'s collaborate 💪',
-          created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString()
-        }
-      ];
-      return res.json({ success: true, data: mockMessages });
+      // Return empty array on error for members
+      return res.json({ success: true, data: [] });
     }
 
     res.json({ success: true, data: messages || [] });
@@ -82,21 +101,33 @@ router.get('/community/:communityId/messages', async (req, res) => {
   }
 });
 
-// Send a text message to community
-router.post('/community/:communityId/messages', async (req, res) => {
+// Send a text message to community (PROTECTED - members only)
+router.post('/community/:communityId/messages', checkMembership, async (req, res) => {
   try {
     const { communityId } = req.params;
-    const { message, username, user_id } = req.body;
+    const { message } = req.body;
     
     if (!message?.trim()) {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    // Only use columns that exist in your schema
+    // Get user profile to get proper username
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name, username')
+      .eq('id', req.user.id)
+      .single();
+
+    // Determine username to display
+    const displayName = profile?.display_name || 
+                       profile?.username || 
+                       req.user.email.split('@')[0];
+
+    // Use authenticated user info
     const newMessage = {
       community_id: communityId,
-      user_id: user_id || 'anonymous',
-      username: username || 'Anonymous',
+      user_id: req.user.id,
+      username: displayName,
       message: message.trim()
     };
 
@@ -109,13 +140,7 @@ router.post('/community/:communityId/messages', async (req, res) => {
 
     if (error) {
       console.error('Supabase insert error:', error);
-      // Return mock response on error
-      const mockResponse = {
-        id: Date.now(),
-        ...newMessage,
-        created_at: new Date().toISOString()
-      };
-      return res.status(201).json({ success: true, data: mockResponse });
+      return res.status(500).json({ error: 'Failed to send message' });
     }
 
     res.status(201).json({ success: true, data });
@@ -125,15 +150,26 @@ router.post('/community/:communityId/messages', async (req, res) => {
   }
 });
 
-// Upload file to community chat (store as special message)
-router.post('/community/:communityId/upload', upload.single('file'), async (req, res) => {
+// Upload file to community chat (PROTECTED - members only)
+router.post('/community/:communityId/upload', checkMembership, upload.single('file'), async (req, res) => {
   try {
     const { communityId } = req.params;
-    const { username, user_id } = req.body;
     
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
+
+    // Get user profile to get proper username
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name, username')
+      .eq('id', req.user.id)
+      .single();
+
+    // Determine username to display
+    const displayName = profile?.display_name || 
+                       profile?.username || 
+                       req.user.email.split('@')[0];
 
     const fileUrl = `http://localhost:3000/uploads/${req.file.filename}`;
     
@@ -147,8 +183,8 @@ router.post('/community/:communityId/upload', upload.single('file'), async (req,
 
     const fileMessage = {
       community_id: communityId,
-      user_id: user_id || 'anonymous',
-      username: username || 'Anonymous',
+      user_id: req.user.id,
+      username: displayName,
       message: `📎 ${req.file.originalname} | ${JSON.stringify(fileInfo)}`
     };
 
@@ -161,13 +197,7 @@ router.post('/community/:communityId/upload', upload.single('file'), async (req,
 
     if (error) {
       console.error('Supabase insert error:', error);
-      // Return mock response on error
-      const mockResponse = {
-        id: Date.now(),
-        ...fileMessage,
-        created_at: new Date().toISOString()
-      };
-      return res.status(201).json({ success: true, data: mockResponse });
+      return res.status(500).json({ error: 'Failed to upload file' });
     }
 
     res.status(201).json({ success: true, data });

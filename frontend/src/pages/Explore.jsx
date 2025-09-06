@@ -158,11 +158,11 @@ const Explore = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Users className="w-4 h-4" />
-                      <span>{community.memberCount.toLocaleString()}</span>
+                      <span>{(community.memberCount || community.member_count || 0).toLocaleString()}</span>
                     </div>
                     
                     <div className="flex gap-1">
-                      {community.tags.slice(0, 2).map(tag => (
+                      {(community.tags || []).slice(0, 2).map(tag => (
                         <span 
                           key={tag}
                           className="px-2 py-1 bg-secondary/50 text-xs text-secondary-foreground rounded-full"
