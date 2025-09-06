@@ -13,10 +13,10 @@ router.get('/', async (req, res) => {
     const { page = 1, limit = 20, sort = 'latest' } = req.query;
     const offset = (page - 1) * limit;
     
-    // Get posts with profile information
+    // Get posts without profiles join for now
     let { data, error, count } = await supabase
       .from('posts')
-      .select('*, profiles(full_name, username, avatar_url)', { count: 'exact' })
+      .select('*', { count: 'exact' })
       .order('created_at', { ascending: sort === 'oldest' })
       .range(offset, offset + limit - 1);
 
@@ -67,7 +67,7 @@ router.post('/', async (req, res) => {
       return res.status(401).json({ error: 'Invalid token' });
     }
 
-    // Insert post
+    // Insert post without profiles join first
     const { data, error } = await supabase
       .from('posts')
       .insert({
@@ -78,7 +78,7 @@ router.post('/', async (req, res) => {
         tags,
         user_id: user.id
       })
-      .select('*, profiles(full_name, avatar_url)')
+      .select()
       .single();
 
     if (error) {
