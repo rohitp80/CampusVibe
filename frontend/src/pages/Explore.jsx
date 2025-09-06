@@ -121,7 +121,10 @@ const Explore = () => {
                 <div 
                   key={community.id}
                   className="bg-card rounded-xl border border-border shadow-card p-6 hover-lift cursor-pointer"
-                  onClick={() => actions.filterByCommunity(community.name)}
+                  onClick={() => {
+                    actions.filterByCommunity(community.name);
+                    actions.setCurrentPage('community');
+                  }}
                 >
                   <div className="flex items-start gap-4 mb-4">
                     <div 

@@ -1,15 +1,16 @@
 // ConnectHub - Main App Layout
 import React from 'react';
-import { useApp } from '../context/AppContext.jsx';
-import TopNav from '../components/Layout/TopNav.jsx';
-import Sidebar from '../components/Layout/Sidebar.jsx';
-import RightSidebar from '../components/Layout/RightSidebar.jsx';
-import Feed from '../components/Feed/Feed.jsx';
-import Explore from './Explore.jsx';
-import Local from './Local.jsx';
-import Wellness from './Wellness.jsx';
-import Profile from './Profile.jsx';
-import Chat from './Chat.jsx';
+import { useApp } from '../context/AppContext';
+import TopNav from '../components/Layout/TopNav';
+import Sidebar from '../components/Layout/Sidebar';
+import RightSidebar from '../components/Layout/RightSidebar';
+import Feed from '../components/Feed/Feed';
+import Explore from './Explore';
+import Community from './Community';
+import Local from './Local';
+import Wellness from './Wellness';
+import Profile from './Profile';
+import Chat from './Chat';
 
 const Index = () => {
   const { state, actions } = useApp();
@@ -17,6 +18,7 @@ const Index = () => {
   const renderPage = () => {
     switch (state.currentPage) {
       case 'explore': return <Explore />;
+      case 'community': return <Community />;
       case 'local': return <Local />;
       case 'wellness': return <Wellness />;
       case 'profile': return <Profile />;
