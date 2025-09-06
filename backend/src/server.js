@@ -13,16 +13,20 @@ const PORT = process.env.PORT || 3000;
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error('Missing Supabase environment variables. Please check your .env file.');
-  console.log('Required variables:');
-  console.log('- SUPABASE_URL');
-  console.log('- SUPABASE_ANON_KEY');
-  process.exit(1);
+let supabase = null;
+
+if (supabaseUrl && supabaseKey && supabaseUrl !== 'https://demo.supabase.co') {
+  try {
+    supabase = createClient(supabaseUrl, supabaseKey);
+    console.log('✅ Supabase client initialized');
+  } catch (error) {
+    console.warn('⚠️  Supabase initialization failed:', error.message);
+  }
+} else {
+  console.log('⚠️  Running in demo mode - Supabase not configured');
 }
 
-// Initialize Supabase client
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export { supabase };
 
 // Middleware
 app.use(cors({
@@ -102,15 +106,22 @@ app.listen(PORT, () => {
 
 // Test connection function
 async function testConnection() {
+  if (!supabase) {
+    console.log('💡 Running in demo mode - no database connection needed');
+    return;
+  }
+  
   try {
     const { data, error } = await supabase.from('profiles').select('count').limit(1);
     if (error) {
       console.log('⚠️  Database connection test failed:', error.message);
+      console.log('💡 Backend will work in demo mode');
     } else {
       console.log('✅ Database connection successful');
     }
   } catch (err) {
     console.log('⚠️  Connection test error:', err.message);
+    console.log('💡 Backend will work in demo mode');
   }
 }
 

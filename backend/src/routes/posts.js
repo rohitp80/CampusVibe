@@ -6,6 +6,25 @@ const router = express.Router();
 // Get all posts
 router.get('/', async (req, res) => {
   try {
+    // Demo mode - return mock data
+    if (!supabase) {
+      return res.json({
+        data: [
+          {
+            id: 1,
+            title: 'Demo Post',
+            content: 'This is a demo post - backend running in demo mode',
+            created_at: new Date().toISOString(),
+            user_id: 'demo-user',
+            profiles: { full_name: 'Demo User', avatar_url: null }
+          }
+        ],
+        count: 1,
+        page: 1,
+        totalPages: 1
+      });
+    }
+
     const { page = 1, limit = 20, sort = 'latest' } = req.query;
     const offset = (page - 1) * limit;
     
@@ -63,6 +82,22 @@ router.get('/', async (req, res) => {
 // Create new post
 router.post('/', async (req, res) => {
   try {
+    // Demo mode - return success without saving
+    if (!supabase) {
+      const { title, content } = req.body;
+      return res.status(201).json({
+        success: true,
+        message: 'Post created successfully (demo mode)',
+        data: {
+          id: Date.now(),
+          title,
+          content,
+          created_at: new Date().toISOString(),
+          user_id: 'demo-user'
+        }
+      });
+    }
+
     const { title, content, type = 'text', is_anonymous = false, tags = [] } = req.body;
     const authHeader = req.headers.authorization;
 
