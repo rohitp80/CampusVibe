@@ -15,7 +15,7 @@ const supabaseKey = process.env.SUPABASE_ANON_KEY;
 
 let supabase = null;
 
-if (supabaseUrl && supabaseKey && supabaseUrl !== 'https://demo.supabase.co') {
+if (supabaseUrl && supabaseKey) {
   try {
     supabase = createClient(supabaseUrl, supabaseKey);
     console.log('✅ Supabase client initialized');
@@ -23,7 +23,7 @@ if (supabaseUrl && supabaseKey && supabaseUrl !== 'https://demo.supabase.co') {
     console.warn('⚠️  Supabase initialization failed:', error.message);
   }
 } else {
-  console.log('⚠️  Running in demo mode - Supabase not configured');
+  console.log('⚠️  Missing Supabase credentials - running in demo mode');
 }
 
 export { supabase };
