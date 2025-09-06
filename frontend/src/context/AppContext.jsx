@@ -366,6 +366,8 @@ const appReducer = (state, action) => {
       const updatedRequests = [...state.friendRequests, newRequest];
       // Store globally so all users can see requests
       localStorage.setItem('campusVibe_globalFriendRequests', JSON.stringify(updatedRequests));
+      console.log('Friend request sent:', newRequest);
+      console.log('All requests:', updatedRequests);
       return {
         ...state,
         friendRequests: updatedRequests
@@ -393,10 +395,14 @@ const appReducer = (state, action) => {
       };
 
     case 'REFRESH_FRIEND_DATA':
+      const globalRequests = JSON.parse(localStorage.getItem('campusVibe_globalFriendRequests') || '[]');
+      const globalFriends = JSON.parse(localStorage.getItem('campusVibe_globalFriends') || '[]');
+      console.log('Refreshing friend data for:', state.currentUser?.username);
+      console.log('Global requests:', globalRequests);
       return {
         ...state,
-        friendRequests: JSON.parse(localStorage.getItem('campusVibe_globalFriendRequests') || '[]'),
-        friends: JSON.parse(localStorage.getItem('campusVibe_globalFriends') || '[]')
+        friendRequests: globalRequests,
+        friends: globalFriends
       };
       
     case 'SET_LOADING':
@@ -624,10 +630,17 @@ export const AppProvider = ({ children }) => {
     setViewingProfile: (profile) => dispatch({ type: 'SET_VIEWING_PROFILE', payload: profile })
   };
 
-  // Refresh friend data when user changes
+  // Refresh friend data when user changes and periodically
   useEffect(() => {
     if (state.currentUser) {
       dispatch({ type: 'REFRESH_FRIEND_DATA' });
+      
+      // Poll for new friend requests every 3 seconds
+      const interval = setInterval(() => {
+        dispatch({ type: 'REFRESH_FRIEND_DATA' });
+      }, 3000);
+      
+      return () => clearInterval(interval);
     }
   }, [state.currentUser?.username]);
   
