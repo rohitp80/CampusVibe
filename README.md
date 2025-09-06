@@ -1,1 +1,1 @@
-# CampusVibe
+# CampusConnect

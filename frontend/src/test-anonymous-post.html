@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anonymous Post Text Overlap Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Test styles to simulate the fix */
+        .text-ellipsis-responsive {
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+        
+        @media (min-width: 640px) {
+            .text-ellipsis-responsive {
+                white-space: normal;
+                overflow: visible;
+                text-overflow: clip;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white p-4">
+    <div class="max-w-2xl mx-auto space-y-4">
+        <h1 class="text-2xl font-bold mb-6">Anonymous Post Text Overlap Fix Test</h1>
+        
+        <!-- Test Case 1: Normal Anonymous Post -->
+        <div class="bg-gray-800 rounded-xl border border-gray-700 p-6">
+            <div class="flex items-start gap-3 mb-4">
+                <img src="https://via.placeholder.com/40x40/666/fff?text=?" alt="Anonymous" class="w-10 h-10 rounded-full">
+                
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h3 class="font-semibold truncate max-w-[150px] sm:max-w-none">
+                            Anonymous
+                        </h3>
+                        <span class="text-sm text-gray-400">•</span>
+                        <span class="text-sm text-gray-400 whitespace-nowrap">
+                            2h ago
+                        </span>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 mt-1 flex-wrap">
+                        <span class="text-xs bg-gray-700 px-2 py-1 rounded-full truncate max-w-[120px] sm:max-w-none">
+                            #WellnessWarriors
+                        </span>
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            <span class="text-sm">🤔</span>
+                            <span class="text-xs text-gray-400 capitalize">thoughtful</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="p-2 hover:bg-gray-700 rounded-lg">
+                    <span class="text-gray-400">⋯</span>
+                </button>
+            </div>
+            
+            <div class="mb-4">
+                <p class="text-gray-100 leading-relaxed">
+                    Feeling overwhelmed with midterms... any tips for managing stress? Looking for some genuine advice from fellow students.
+                </p>
+            </div>
+        </div>
+        
+        <!-- Test Case 2: Long Community Name -->
+        <div class="bg-gray-800 rounded-xl border border-gray-700 p-6">
+            <div class="flex items-start gap-3 mb-4">
+                <img src="https://via.placeholder.com/40x40/666/fff?text=?" alt="Anonymous" class="w-10 h-10 rounded-full">
+                
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h3 class="font-semibold truncate max-w-[150px] sm:max-w-none">
+                            Anonymous
+                        </h3>
+                        <span class="text-sm text-gray-400">•</span>
+                        <span class="text-sm text-gray-400 whitespace-nowrap">
+                            5m ago
+                        </span>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 mt-1 flex-wrap">
+                        <span class="text-xs bg-gray-700 px-2 py-1 rounded-full truncate max-w-[120px] sm:max-w-none">
+                            #VeryLongCommunityNameThatMightOverflow
+                        </span>
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            <span class="text-sm">😰</span>
+                            <span class="text-xs text-gray-400 capitalize">stressed</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="p-2 hover:bg-gray-700 rounded-lg">
+                    <span class="text-gray-400">⋯</span>
+                </button>
+            </div>
+            
+            <div class="mb-4">
+                <p class="text-gray-100 leading-relaxed">
+                    This is a test post with a very long community name to see if the text overlap fix works properly on different screen sizes.
+                </p>
+            </div>
+        </div>
+        
+        <!-- Test Case 3: Mobile View Simulation -->
+        <div class="bg-gray-800 rounded-xl border border-gray-700 p-6" style="max-width: 320px;">
+            <h3 class="text-lg font-semibold mb-3">Mobile View Test (320px width)</h3>
+            <div class="flex items-start gap-3 mb-4">
+                <img src="https://via.placeholder.com/40x40/666/fff?text=?" alt="Anonymous" class="w-10 h-10 rounded-full">
+                
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h3 class="font-semibold truncate max-w-[150px] sm:max-w-none">
+                            Anonymous
+                        </h3>
+                        <span class="text-sm text-gray-400">•</span>
+                        <span class="text-sm text-gray-400 whitespace-nowrap">
+                            1h ago
+                        </span>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 mt-1 flex-wrap">
+                        <span class="text-xs bg-gray-700 px-2 py-1 rounded-full truncate max-w-[120px] sm:max-w-none">
+                            #SuperLongCommunityName
+                        </span>
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            <span class="text-sm">🚀</span>
+                            <span class="text-xs text-gray-400 capitalize">excited</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="p-2 hover:bg-gray-700 rounded-lg">
+                    <span class="text-gray-400">⋯</span>
+                </button>
+            </div>
+            
+            <div class="mb-4">
+                <p class="text-gray-100 leading-relaxed">
+                    Testing mobile view with long community names and ensuring no text overlap occurs.
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="max-w-2xl mx-auto mt-8 p-4 bg-green-900 rounded-lg">
+        <h2 class="text-lg font-semibold text-green-100 mb-2">Fix Applied:</h2>
+        <ul class="text-green-200 space-y-1 text-sm">
+            <li>✅ Added truncate with responsive max-width for usernames</li>
+            <li>✅ Added truncate with responsive max-width for community names</li>
+            <li>✅ Added whitespace-nowrap for timestamps</li>
+            <li>✅ Added flex-wrap for better responsive behavior</li>
+            <li>✅ Added flex-shrink-0 for mood indicators</li>
+            <li>✅ Improved mobile responsiveness with breakpoint-specific styles</li>
+        </ul>
+    </div>
+</body>
+</html>
