@@ -17,7 +17,9 @@ const Index = () => {
   const { state, actions } = useApp();
   
   const renderPage = () => {
+    console.log('renderPage called with currentPage:', state.currentPage);
     switch (state.currentPage) {
+      case 'feed': return <Feed />;
       case 'explore': return <Explore />;
       case 'community': return <Community />;
       case 'local': return <Local />;
@@ -25,7 +27,9 @@ const Index = () => {
       case 'saved': return <SavedPosts />;
       case 'profile': return <Profile />;
       case 'chat': return <Chat />;
-      default: return <Feed />;
+      default: 
+        console.log('Default case hit! currentPage was:', state.currentPage);
+        return <Feed />;
     }
   };
   

@@ -22,6 +22,10 @@ import {
 const Profile = () => {
   const { state, actions } = useApp();
   const [isEditing, setIsEditing] = useState(false);
+  
+  // Use viewingProfile if available, otherwise use currentUser
+  const profileUser = state.viewingProfile || state.currentUser;
+  const isOwnProfile = !state.viewingProfile;
   const [editData, setEditData] = useState({
     displayName: state.currentUser?.displayName || '',
     bio: state.currentUser?.bio || '',
@@ -88,7 +92,7 @@ const Profile = () => {
     setEditData({...editData, skills: editData.skills.filter(s => s !== skill)});
   };
 
-  if (!state.currentUser) return null;
+  if (!profileUser) return null;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -96,8 +100,8 @@ const Profile = () => {
       <div className="bg-card rounded-xl border border-border shadow-card p-6">
         <div className="flex items-start gap-6">
           <img
-            src={state.currentUser.avatar}
-            alt={state.currentUser.displayName}
+            src={profileUser.avatar || profileUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileUser.username}`}
+            alt={profileUser.displayName || profileUser.display_name}
             className="w-24 h-24 rounded-full object-cover"
           />
           
@@ -113,13 +117,35 @@ const Profile = () => {
                   />
                 ) : (
                   <h1 className="text-2xl font-bold text-foreground">
-                    {state.currentUser.displayName}
+                    {profileUser.displayName || profileUser.display_name}
                   </h1>
                 )}
-                <p className="text-muted-foreground">@{state.currentUser.username}</p>
+                <p className="text-muted-foreground">@{profileUser.username}</p>
+                
+                {/* Quick Stats */}
+                <div className="flex gap-4 mt-2">
+                  <span className="text-sm text-muted-foreground">
+                    <strong className="text-foreground">
+                      {(state.posts || []).filter(post => (post.author === profileUser.username || post.username === profileUser.username) && !post.isAnonymous).length}
+                    </strong> Posts
+                  </span>
+                </div>
               </div>
               
-              <div className="flex gap-2">
+              {!isOwnProfile && (
+                <button
+                  onClick={() => {
+                    actions.setViewingProfile(null);
+                    actions.setCurrentPage('feed');
+                  }}
+                  className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors flex items-center gap-2"
+                >
+                  ← Back
+                </button>
+              )}
+              
+              {isOwnProfile && (
+                <div className="flex gap-2">
                 {isEditing ? (
                   <>
                     <button onClick={handleSave} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2">
@@ -137,12 +163,13 @@ const Profile = () => {
                     Edit Profile
                   </button>
                 )}
-              </div>
+                </div>
+              )}
             </div>
             
             {/* Bio */}
             <div className="mb-4">
-              {isEditing ? (
+              {isEditing && isOwnProfile ? (
                 <textarea
                   value={editData.bio}
                   onChange={(e) => setEditData({...editData, bio: e.target.value})}
@@ -150,7 +177,7 @@ const Profile = () => {
                   className="w-full h-20 p-3 bg-secondary/30 border border-border/50 rounded-lg resize-none text-foreground placeholder:text-muted-foreground"
                 />
               ) : (
-                <p className="text-foreground">{state.currentUser.bio || "No bio available"}</p>
+                <p className="text-foreground">{profileUser.bio || "No bio available"}</p>
               )}
             </div>
           </div>
@@ -386,6 +413,56 @@ const Profile = () => {
               }}
             />
           )}
+        </div>
+        
+        {/* User Posts Section */}
+        <div className="bg-card border border-border rounded-xl p-8 mt-6">
+          <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
+            <BookOpen className="w-5 h-5" />
+            Posts ({(state.posts || []).filter(post => 
+              (post.author === profileUser.username || post.username === profileUser.username) && !post.isAnonymous
+            ).length})
+          </h2>
+          
+          <div className="space-y-6">
+            {(state.posts || [])
+              .filter(post => (post.author === profileUser.username || post.username === profileUser.username) && !post.isAnonymous)
+              .map(post => (
+                <div key={post.id} className="bg-secondary/30 rounded-lg p-6 border border-border/50">
+                  <div className="flex items-start gap-3">
+                    <img
+                      src={profileUser.avatar || profileUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileUser.username}`}
+                      alt={profileUser.displayName || profileUser.display_name}
+                      className="w-12 h-12 rounded-full"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-medium">{profileUser.displayName || profileUser.display_name}</span>
+                        <span className="text-muted-foreground text-sm">@{profileUser.username}</span>
+                        <span className="text-muted-foreground text-sm">•</span>
+                        <span className="text-muted-foreground text-sm">
+                          {post.timestamp ? new Date(post.timestamp).toLocaleDateString() : 'Just now'}
+                        </span>
+                      </div>
+                      <p className="text-foreground mb-3 text-base leading-relaxed">{post.content}</p>
+                      {post.image && (
+                        <img src={post.image} alt="Post" className="rounded-lg max-w-full h-auto mb-2" />
+                      )}
+                      <div className="flex items-center gap-4 text-muted-foreground text-sm">
+                        <span>❤️ {post.likes}</span>
+                        <span>💬 {post.comments}</span>
+                        <span>🔄 {post.shares}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            }
+            
+            {(state.posts || []).filter(post => (post.author === profileUser.username || post.username === profileUser.username) && !post.isAnonymous).length === 0 && (
+              <p className="text-muted-foreground text-center py-8">No posts yet</p>
+            )}
+          </div>
         </div>
       </div>
     </div>

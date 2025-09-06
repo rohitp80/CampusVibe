@@ -122,7 +122,7 @@ const Explore = () => {
                   key={community.id}
                   className="bg-card rounded-xl border border-border shadow-card p-6 hover-lift cursor-pointer"
                   onClick={() => {
-                    actions.filterByCommunity(community.name);
+                    actions.selectCommunity(community);
                     actions.setCurrentPage('community');
                   }}
                 >

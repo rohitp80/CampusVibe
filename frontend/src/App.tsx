@@ -7,6 +7,11 @@ import { AppProvider, useApp } from "./context/AppContext";
 import { queryClient } from "./lib/queryClient";
 import Index from "./pages/Index";
 import PostDetail from "./pages/PostDetail";
+import Communities from "./pages/Communities";
+import Explore from "./pages/Explore";
+import Community from "./pages/Community";
+import Profile from "./pages/Profile";
+import SavedPosts from "./pages/SavedPosts";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -39,6 +44,7 @@ const AppContent = () => {
       <Routes>
         <Route path="/" element={<Index />} />
         <Route path="/post/:postId" element={<PostDetail />} />
+        <Route path="/communities" element={<Communities />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>

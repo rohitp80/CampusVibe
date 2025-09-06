@@ -132,6 +132,7 @@ const CreatePost = () => {
     const newPost = {
       userId: selectedType.name === 'Anonymous' ? 0 : state.currentUser.id,
       username: selectedType.name === 'Anonymous' ? 'anonymous' : state.currentUser.username,
+      author: selectedType.name === 'Anonymous' ? 'anonymous' : state.currentUser.username,
       displayName: selectedType.name === 'Anonymous' ? '' : state.currentUser.displayName,
       avatar: selectedType.name === 'Anonymous' ? '/api/placeholder/40/40' : state.currentUser.avatar,
       community: selectedCommunity?.name || 'General',

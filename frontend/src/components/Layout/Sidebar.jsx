@@ -1,5 +1,6 @@
 // ConnectHub - Main Sidebar Component
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext.jsx';
 import { communities, moods } from '../../data/dummyData.js';
 import { 
@@ -105,7 +106,7 @@ const Sidebar = () => {
                     {trendingCommunities.map(community => (
                       <button
                         key={community.id}
-                        onClick={() => actions.filterByCommunity(community.name)}
+                        onClick={() => actions.selectCommunity(community)}
                         className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors"
                       >
                         <div 

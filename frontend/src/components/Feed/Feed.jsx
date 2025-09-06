@@ -135,6 +135,29 @@ const Feed = () => {
         </div>
       </div>
       
+      {/* Community Filter Banner */}
+      {state.selectedCommunity && (
+        <div className="bg-primary/10 border border-primary/20 rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 rounded-full bg-primary" />
+              <div>
+                <h3 className="font-semibold">#{state.selectedCommunity.name || state.selectedCommunity}</h3>
+                <p className="text-sm text-muted-foreground">
+                  Showing posts from this community • {sortedPosts.length} posts
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => actions.selectCommunity(null)}
+              className="text-primary hover:text-primary/80 text-sm font-medium"
+            >
+              Show All Posts
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Create Post */}
       <CreatePost />
       
