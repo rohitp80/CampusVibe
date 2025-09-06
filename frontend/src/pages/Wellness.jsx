@@ -1,5 +1,6 @@
 // ConnectHub - Wellness Page
 import React, { useState } from 'react';
+import { useApp } from '../context/AppContext.jsx';
 import { 
   Heart, 
   Moon, 
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 
 const Wellness = () => {
+  const { actions } = useApp();
   const [selectedMood, setSelectedMood] = useState(null);
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [newGoalText, setNewGoalText] = useState('');
@@ -420,7 +422,14 @@ const Wellness = () => {
               ))}
             </div>
             
-            <button className="w-full mt-4 px-4 py-2 bg-secondary/50 hover:bg-secondary/70 rounded-lg text-sm font-medium transition-colors">
+            <button 
+              onClick={() => {
+                console.log('View All Events clicked');
+                actions.setEventFilter('Wellness');
+                actions.setCurrentPage('local');
+              }}
+              className="w-full mt-4 px-4 py-2 bg-secondary/50 hover:bg-secondary/70 rounded-lg text-sm font-medium transition-colors"
+            >
               View All Events
             </button>
           </div>

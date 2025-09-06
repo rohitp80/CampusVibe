@@ -1,6 +1,6 @@
 // ConnectHub - Global State Context
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import { posts as initialPosts, events as initialEvents, users, chatRooms, studyNotes, connections } from '../data/dummyData.js';
+import { posts as initialPosts, events as initialEvents, users, chatRooms, studyNotes, connections, communities as initialCommunities } from '../data/dummyData.js';
 import { supabase } from '../lib/supabase';
 
 const AppContext = createContext();
@@ -20,6 +20,10 @@ const initialState = {
   
   // Events
   events: initialEvents,
+  eventFilter: 'all',
+  
+  // Communities
+  communities: initialCommunities,
   
   // Chat and notes
   chatRooms,
@@ -153,6 +157,20 @@ const appReducer = (state, action) => {
       };
       return { ...state, events: [newEvent, ...state.events] };
       
+    case 'ADD_COMMUNITY':
+      const newCommunity = {
+        ...action.payload,
+        id: Date.now(),
+        memberCount: 1,
+        trending: false,
+        color: '#8B5CF6',
+        tags: action.payload.tags || []
+      };
+      return { ...state, communities: [newCommunity, ...state.communities] };
+      
+    case 'SET_EVENT_FILTER':
+      return { ...state, eventFilter: action.payload };
+      
     case 'TOGGLE_EVENT_ATTENDANCE':
       return {
         ...state,
@@ -239,6 +257,9 @@ export const AppProvider = ({ children }) => {
             displayName: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email,
             username: session.user.email.split('@')[0],
             avatar: session.user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.email}`,
+            university: session.user.user_metadata?.university || "University",
+            year: "Student",
+            location: "Campus",
             bio: 'Connected via Supabase',
             isOnline: true
           }
@@ -257,6 +278,9 @@ export const AppProvider = ({ children }) => {
             displayName: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email,
             username: session.user.email.split('@')[0],
             avatar: session.user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.email}`,
+            university: session.user.user_metadata?.university || "University",
+            year: "Student",
+            location: "Campus",
             bio: 'Connected via Supabase',
             isOnline: true
           }
@@ -315,6 +339,8 @@ export const AppProvider = ({ children }) => {
     addComment: (postId, comment) => dispatch({ type: 'ADD_COMMENT', payload: { postId, comment } }),
     filterByCommunity: (community) => dispatch({ type: 'FILTER_BY_COMMUNITY', payload: community }),
     addEvent: (event) => dispatch({ type: 'ADD_EVENT', payload: event }),
+    addCommunity: (community) => dispatch({ type: 'ADD_COMMUNITY', payload: community }),
+    setEventFilter: (filter) => dispatch({ type: 'SET_EVENT_FILTER', payload: filter }),
     toggleEventAttendance: (eventId) => dispatch({ type: 'TOGGLE_EVENT_ATTENDANCE', payload: eventId }),
     setActiveChat: (chatId) => dispatch({ type: 'SET_ACTIVE_CHAT', payload: chatId }),
     addStudyNote: (note) => dispatch({ type: 'ADD_STUDY_NOTE', payload: note }),

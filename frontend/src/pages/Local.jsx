@@ -15,7 +15,6 @@ import {
 const Local = () => {
   const { state, actions } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all');
   const [showCreateEvent, setShowCreateEvent] = useState(false);
   const eventTypes = ['all', 'Workshop', 'Study Group', 'Social', 'Wellness', 'Academic'];
   
@@ -23,7 +22,7 @@ const Local = () => {
     const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          event.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          event.organizer.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterType === 'all' || event.category === filterType;
+    const matchesFilter = state.eventFilter === 'all' || event.category === state.eventFilter;
     return matchesSearch && matchesFilter;
   });
   
@@ -152,8 +151,8 @@ const Local = () => {
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-muted-foreground" />
               <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
+                value={state.eventFilter}
+                onChange={(e) => actions.setEventFilter(e.target.value)}
                 className="px-3 py-2 bg-secondary/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground"
               >
                 {eventTypes.map(type => (

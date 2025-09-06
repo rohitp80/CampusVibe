@@ -1,43 +1,30 @@
 // ConnectHub - Explore Page
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext.jsx';
-import EventCard from '../components/Events/EventCard.jsx';
-import { events, communities, users } from '../data/dummyData.js';
+import { users } from '../data/dummyData.js';
 import { 
   Search, 
-  Filter, 
-  Calendar, 
   Users, 
   TrendingUp,
   MapPin,
-  Star,
-  Hash
+  Hash,
+  Plus
 } from 'lucide-react';
 
 const Explore = () => {
   const { state, actions } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [viewMode, setViewMode] = useState('events'); // events, communities, people
-  
-  const categories = [
-    { id: 'all', name: 'All Categories' },
-    { id: 'Workshop', name: 'Workshops' },
-    { id: 'Study Group', name: 'Study Groups' },
-    { id: 'Exhibition', name: 'Exhibitions' },
-    { id: 'Wellness', name: 'Wellness' },
-    { id: 'Social', name: 'Social' }
-  ];
-  
-  const filteredEvents = events.filter(event => {
-    const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         event.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         event.organizer.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || event.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+  const [viewMode, setViewMode] = useState('communities'); // communities, people
+  const [showCreateCommunity, setShowCreateCommunity] = useState(false);
+  const [newCommunity, setNewCommunity] = useState({
+    name: '',
+    description: '',
+    category: 'Academic',
+    tags: []
   });
   
-  const filteredCommunities = communities.filter(community =>
+  
+  const filteredCommunities = state.communities.filter(community =>
     community.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     community.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -56,7 +43,7 @@ const Explore = () => {
           Explore ConnectHub
         </h1>
         <p className="text-muted-foreground">
-          Discover events, communities, and people in your network
+          Discover communities and people in your network
         </p>
       </div>
       
@@ -65,7 +52,6 @@ const Explore = () => {
         <div className="flex items-center justify-between mb-6">
           <div className="flex gap-2">
             {[
-              { id: 'events', label: 'Events', icon: Calendar },
               { id: 'communities', label: 'Communities', icon: Hash },
               { id: 'people', label: 'People', icon: Users }
             ].map(tab => {
@@ -92,7 +78,6 @@ const Explore = () => {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <TrendingUp className="w-4 h-4" />
             <span>
-              {viewMode === 'events' && `${filteredEvents.length} events`}
               {viewMode === 'communities' && `${filteredCommunities.length} communities`}
               {viewMode === 'people' && `${filteredUsers.length} people`}
             </span>
@@ -100,7 +85,7 @@ const Explore = () => {
         </div>
         
         {/* Search and Filters */}
-        <div className="flex flex-col lg:flex-row gap-4">
+        <div className="flex flex-col lg:flex-row gap-4 items-center">
           {/* Search */}
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -113,49 +98,21 @@ const Explore = () => {
             />
           </div>
           
-          {/* Category Filter (Events only) */}
-          {viewMode === 'events' && (
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-muted-foreground" />
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-3 py-2 bg-secondary/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground"
-              >
-                {categories.map(category => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* Create Community Button */}
+          {viewMode === 'communities' && (
+            <button
+              onClick={() => setShowCreateCommunity(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
+            >
+              <Plus className="w-4 h-4" />
+              Create Community
+            </button>
           )}
         </div>
       </div>
       
       {/* Content */}
       <div className="animate-fade-in">
-        {/* Events View */}
-        {viewMode === 'events' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredEvents.length > 0 ? (
-              filteredEvents.map(event => (
-                <EventCard key={event.id} event={event} />
-              ))
-            ) : (
-              <div className="col-span-full bg-card rounded-xl border border-border shadow-card p-12 text-center">
-                <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-foreground mb-2">
-                  No events found
-                </h3>
-                <p className="text-muted-foreground">
-                  Try adjusting your search or filter criteria
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-        
         {/* Communities View */}
         {viewMode === 'communities' && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -164,7 +121,10 @@ const Explore = () => {
                 <div 
                   key={community.id}
                   className="bg-card rounded-xl border border-border shadow-card p-6 hover-lift cursor-pointer"
-                  onClick={() => actions.filterByCommunity(community.name)}
+                  onClick={() => {
+                    actions.filterByCommunity(community.name);
+                    actions.setCurrentPage('community');
+                  }}
                 >
                   <div className="flex items-start gap-4 mb-4">
                     <div 
@@ -301,6 +261,81 @@ const Explore = () => {
           </div>
         )}
       </div>
+      
+      {/* Create Community Modal */}
+      {showCreateCommunity && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-xl border border-border shadow-elevated p-6 w-full max-w-md">
+            <h2 className="text-xl font-semibold text-foreground mb-4">Create Community</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Community Name
+                </label>
+                <input
+                  type="text"
+                  value={newCommunity.name}
+                  onChange={(e) => setNewCommunity({...newCommunity, name: e.target.value})}
+                  placeholder="Enter community name"
+                  className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={newCommunity.description}
+                  onChange={(e) => setNewCommunity({...newCommunity, description: e.target.value})}
+                  placeholder="Describe your community"
+                  rows={3}
+                  className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Category
+                </label>
+                <select
+                  value={newCommunity.category}
+                  onChange={(e) => setNewCommunity({...newCommunity, category: e.target.value})}
+                  className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="Academic">Academic</option>
+                  <option value="Social">Social</option>
+                  <option value="Professional">Professional</option>
+                  <option value="Hobby">Hobby</option>
+                  <option value="Sports">Sports</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowCreateCommunity(false)}
+                className="flex-1 px-4 py-2 bg-secondary/50 text-secondary-foreground rounded-lg hover:bg-secondary/70 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (newCommunity.name && newCommunity.description) {
+                    actions.addCommunity(newCommunity);
+                    setShowCreateCommunity(false);
+                    setNewCommunity({ name: '', description: '', category: 'Academic', tags: [] });
+                  }
+                }}
+                className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

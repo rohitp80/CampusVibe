@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 
 const Login = ({ onLogin, onSwitchToRegister }) => {
   const [formData, setFormData] = useState({
-    email: 'test@campusconnect.com',
+    email: 'test@campusvibe.com',
     password: 'password123'
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -27,24 +27,22 @@ const Login = ({ onLogin, onSwitchToRegister }) => {
       if (error) throw error;
       
       // Create user object for your existing onLogin callback
-      const mockUser = {
+      const user = {
         id: data.user.id,
         username: data.user.email.split('@')[0],
         displayName: data.user.user_metadata?.full_name || data.user.email.split('@')[0],
         email: data.user.email,
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.email}`,
+        avatar: data.user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.email}`,
         university: "University",
         year: "Student",
         location: "Campus"
       };
       
-      onLogin(mockUser);
+      onLogin(user);
     } catch (err) {
       console.error('Login error:', err);
       if (err.message?.includes('Invalid login credentials')) {
         setError('Invalid email or password. Try the test credentials or sign up first.');
-      } else if (err.message?.includes('Email not confirmed')) {
-        setError('Please confirm your email address before signing in.');
       } else {
         setError(err.message || 'Login failed. Please try again.');
       }
@@ -58,7 +56,7 @@ const Login = ({ onLogin, onSwitchToRegister }) => {
     setError('');
     
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}`
@@ -181,7 +179,7 @@ const Login = ({ onLogin, onSwitchToRegister }) => {
         {/* Development helper */}
         <div className="mt-4 p-3 bg-gray-50 rounded-lg">
           <p className="text-xs text-gray-600 text-center">
-            <strong>Test:</strong> test@campusconnect.com / password123
+            <strong>Test:</strong> test@campusvibe.com / password123
           </p>
         </div>
       </div>

@@ -106,7 +106,7 @@ const TopNav = () => {
           
           {/* Messages */}
           <button
-            onClick={() => actions.setCurrentPage('messages')}
+            onClick={() => actions.setCurrentPage('chat')}
             className="p-2 rounded-lg hover:bg-secondary/50 transition-colors"
           >
             <MessageCircle className="w-5 h-5" />
