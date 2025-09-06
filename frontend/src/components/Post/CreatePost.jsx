@@ -1,6 +1,7 @@
 // ConnectHub - Create Post Component
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
+import { useCreatePost } from '../../hooks/usePosts';
 import { moods, communities, postTypes } from '../../data/dummyData.js';
 import { 
   Image as ImageIcon, 
@@ -14,6 +15,7 @@ import {
 
 const CreatePost = () => {
   const { state, actions } = useApp();
+  const createPostMutation = useCreatePost();
   const [content, setContent] = useState('');
   const [selectedMood, setSelectedMood] = useState(null);
   const [selectedCommunity, setSelectedCommunity] = useState(null);
@@ -64,7 +66,7 @@ const CreatePost = () => {
     }
   };
   
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!content.trim() && !imagePreview && !codeSnippet) return;
@@ -87,7 +89,24 @@ const CreatePost = () => {
       })
     };
     
+    // Add to your existing local state
     actions.addPost(newPost);
+    
+    // Also save to backend if authenticated
+    if (state.isAuthenticated && content.trim()) {
+      try {
+        await createPostMutation.mutateAsync({
+          title: selectedType.name === 'Anonymous' ? 'Anonymous Post' : `${selectedType.name} Post`,
+          content: content.trim(),
+          type: selectedType.name.toLowerCase().replace(' ', ''),
+          is_anonymous: selectedType.name === 'Anonymous',
+          tags: selectedCommunity ? [selectedCommunity.name] : []
+        });
+      } catch (error) {
+        console.error('Backend save failed:', error);
+        // Continue with local functionality
+      }
+    }
     
     // Reset form
     setContent('');
