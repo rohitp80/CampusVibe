@@ -109,7 +109,7 @@ router.post('/', async (req, res) => {
         type,
         is_anonymous,
         tags,
-        author_id: user.id
+        user_id: user.id
       })
       .select(`
         *,
