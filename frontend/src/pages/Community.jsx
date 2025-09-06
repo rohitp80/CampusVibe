@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { supabase } from '../lib/supabase';
-import { Hash, Users, MessageCircle, Send, ArrowLeft, Paperclip, Download, FileText, Image, Smile } from 'lucide-react';
+import { useCommunityMembership } from '../hooks/useCommunityMembership';
+import { Hash, Users, MessageCircle, Send, ArrowLeft, Paperclip, Download, FileText, Image, Smile, UserPlus, UserMinus, Shield, Trash2, Crown, UserX } from 'lucide-react';
 
 const Community = () => {
   const { state, actions } = useApp();
@@ -10,6 +11,9 @@ const Community = () => {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [members, setMembers] = useState([]);
+  const [showMembers, setShowMembers] = useState(false);
+  const [loadingMembers, setLoadingMembers] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const emojiPickerRef = useRef(null);
@@ -21,6 +25,19 @@ const Community = () => {
     memberCount: 1247,
     color: "#8B5CF6"
   };
+
+  // Use membership hook
+  const {
+    isMember: rawIsMember,
+    isAdmin,
+    loading: membershipLoading,
+    joinCommunity,
+    leaveCommunity,
+    deleteCommunity
+  } = useCommunityMembership(currentCommunity.id);
+
+  // Admin is always a member
+  const isMember = rawIsMember || isAdmin;
 
   // Common emojis for quick access
   const commonEmojis = [
@@ -48,105 +65,212 @@ const Community = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Fetch messages when component loads
+  // Clear messages when user is no longer a member
   useEffect(() => {
-    fetchMessages();
-    setupRealtimeSubscription();
+    if (!membershipLoading && !isMember) {
+      setMessages([]);
+      setLoading(false);
+    }
+  }, [isMember, membershipLoading]);
+
+  // Fetch messages when component loads or membership changes
+  useEffect(() => {
+    let cleanup;
+    
+    // Only setup when membership loading is complete
+    if (!membershipLoading) {
+      if (isMember) {
+        fetchMessages();
+        cleanup = setupRealtimeSubscription();
+      } else {
+        setMessages([]);
+        setLoading(false);
+      }
+    }
     
     return () => {
-      // Cleanup subscription
-      supabase.removeAllChannels();
+      // Cleanup polling interval
+      if (cleanup) cleanup();
     };
-  }, [currentCommunity.id]);
+  }, [currentCommunity.id, isMember, membershipLoading]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  const fetchMessages = async () => {
+  const fetchMessages = async (isPolling = false) => {
+    // Only fetch if user is a member and not loading
+    if (!isMember || membershipLoading) {
+      if (!isPolling) setLoading(false);
+      return;
+    }
+
     try {
-      const response = await fetch(`http://localhost:3000/api/chat/community/${currentCommunity.id}/messages`);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.log('No session found');
+        if (!isPolling) setLoading(false);
+        return;
+      }
+
+      const response = await fetch(`http://localhost:3000/api/chat/community/${currentCommunity.id}/messages`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+      
       if (response.ok) {
         const result = await response.json();
         setMessages(result.data || []);
+      } else if (response.status === 403) {
+        // Not a member anymore
+        setMessages([]);
+      } else {
+        console.error('Failed to fetch messages:', response.status);
       }
     } catch (error) {
       console.error('Failed to fetch messages:', error);
     } finally {
-      setLoading(false);
+      if (!isPolling) setLoading(false);
     }
   };
 
   const setupRealtimeSubscription = () => {
-    // Subscribe to real-time changes
-    const channel = supabase
-      .channel(`community_${currentCommunity.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'community_messages',
-          filter: `community_id=eq.${currentCommunity.id}`
-        },
-        (payload) => {
-          console.log('New message received:', payload.new);
-          setMessages(prev => [...prev, payload.new]);
-        }
-      )
-      .subscribe();
+    if (!isMember || membershipLoading) {
+      return;
+    }
+    
+    // Use simple polling instead of WebSocket to avoid connection issues
+    const pollInterval = setInterval(() => {
+      if (isMember && !membershipLoading) {
+        fetchMessages(true); // Pass true to indicate this is polling
+      }
+    }, 5000); // Poll every 5 seconds
 
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
   };
 
   const sendMessage = async () => {
-    if (!message.trim()) return;
+    if (!message.trim() || !isMember) return;
     
     const messageText = message.trim();
     setMessage(''); // Clear input immediately
     
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.error('No session found');
+        return;
+      }
+
       const response = await fetch(`http://localhost:3000/api/chat/community/${currentCommunity.id}/messages`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
-          message: messageText,
-          username: state.currentUser?.username || 'You',
-          user_id: state.currentUser?.id || 'anonymous'
+          message: messageText
         })
       });
       
       if (response.ok) {
         const result = await response.json();
-        // Add message directly to state (no real-time subscription working yet)
         setMessages(prev => [...prev, result.data]);
       } else {
-        console.error('Failed to send message');
+        console.error('Failed to send message:', response.status);
       }
     } catch (error) {
       console.error('Failed to send message:', error);
     }
   };
 
+  const fetchMembers = async () => {
+    if (!isMember) return;
+    
+    setLoadingMembers(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch(`http://localhost:3000/api/community/${currentCommunity.id}/members`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setMembers(result.data || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch members:', error);
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
+  const removeMember = async (userId) => {
+    if (!isAdmin) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch(`http://localhost:3000/api/community/${currentCommunity.id}/remove/${userId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      if (response.ok) {
+        // Remove from local state
+        setMembers(prev => prev.filter(member => member.user_id !== userId));
+        // Update member count
+        const newCount = Math.max((currentCommunity.member_count || currentCommunity.memberCount || 1) - 1, 0);
+        actions.dispatch({ 
+          type: 'UPDATE_COMMUNITY_MEMBER_COUNT', 
+          payload: { communityId: currentCommunity.id, newCount } 
+        });
+        // Trigger community list refresh
+        window.dispatchEvent(new CustomEvent('communityUpdated'));
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to remove member');
+      }
+    } catch (error) {
+      console.error('Failed to remove member:', error);
+      alert('Failed to remove member');
+    }
+  };
+
   const handleFileUpload = async (event) => {
+    if (!isMember) return;
+    
     const file = event.target.files[0];
     if (!file) return;
 
     setUploading(true);
     
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.error('No session found');
+        return;
+      }
+
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('username', state.currentUser?.username || 'You');
-      formData.append('user_id', state.currentUser?.id || 'anonymous');
 
       const response = await fetch(`http://localhost:3000/api/chat/community/${currentCommunity.id}/upload`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        },
         body: formData
       });
 
@@ -154,7 +278,7 @@ const Community = () => {
         const result = await response.json();
         setMessages(prev => [...prev, result.data]);
       } else {
-        console.error('Failed to upload file');
+        console.error('Failed to upload file:', response.status);
       }
     } catch (error) {
       console.error('Failed to upload file:', error);
@@ -214,17 +338,127 @@ const Community = () => {
               <p className="text-muted-foreground">{currentCommunity.description}</p>
             </div>
           </div>
+          
+          {/* Membership Controls */}
+          <div className="flex items-center gap-2">
+            {/* Members Button - Show for all members */}
+            {isMember && (
+              <button
+                onClick={() => {
+                  setShowMembers(!showMembers);
+                  if (!showMembers) fetchMembers();
+                }}
+                className="bg-secondary text-secondary-foreground px-3 py-2 rounded-lg hover:bg-secondary/90 flex items-center gap-2"
+              >
+                <Users className="w-4 h-4" />
+                Members
+              </button>
+            )}
+            
+            {membershipLoading ? (
+              <div className="bg-secondary px-4 py-2 rounded-lg">
+                <span className="text-sm">Loading...</span>
+              </div>
+            ) : (
+              <>
+                {!isMember ? (
+                  <button
+                    onClick={async () => {
+                      const result = await joinCommunity();
+                      if (!result.success) {
+                        alert(result.error);
+                      } else {
+                        // Update member count immediately in UI
+                        const newCount = (currentCommunity.member_count || currentCommunity.memberCount || 0) + 1;
+                        actions.dispatch({ 
+                          type: 'UPDATE_COMMUNITY_MEMBER_COUNT', 
+                          payload: { communityId: currentCommunity.id, newCount } 
+                        });
+                        // Trigger community list refresh
+                        window.dispatchEvent(new CustomEvent('communityUpdated'));
+                      }
+                    }}
+                    className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 flex items-center gap-2"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Join Community
+                  </button>
+                ) : (
+                  <>
+                    {!isAdmin && (
+                      <button
+                        onClick={async () => {
+                          if (confirm('Are you sure you want to leave this community?')) {
+                            const result = await leaveCommunity();
+                            if (result.success) {
+                              // Update member count immediately in UI
+                              const newCount = Math.max((currentCommunity.member_count || currentCommunity.memberCount || 1) - 1, 0);
+                              actions.dispatch({ 
+                                type: 'UPDATE_COMMUNITY_MEMBER_COUNT', 
+                                payload: { communityId: currentCommunity.id, newCount } 
+                              });
+                              // Clear messages and go back to explore
+                              setMessages([]);
+                              // Trigger community list refresh
+                              window.dispatchEvent(new CustomEvent('communityUpdated'));
+                              actions.setCurrentPage('explore');
+                            } else {
+                              alert(result.error);
+                            }
+                          }
+                        }}
+                        className="bg-secondary text-secondary-foreground px-4 py-2 rounded-lg hover:bg-secondary/90 flex items-center gap-2"
+                      >
+                        <UserMinus className="w-4 h-4" />
+                        Leave
+                      </button>
+                    )}
+                    
+                    {isAdmin && (
+                      <div className="flex items-center gap-2">
+                        <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm flex items-center gap-1">
+                          <Shield className="w-3 h-3" />
+                          Admin
+                        </span>
+                        <button
+                          onClick={async () => {
+                            if (confirm('Are you sure you want to delete this community? This action cannot be undone.')) {
+                              const result = await deleteCommunity();
+                              if (!result.success) {
+                                alert(result.error);
+                              } else {
+                                actions.setCurrentPage('explore');
+                              }
+                            }
+                          }}
+                          className="bg-destructive text-destructive-foreground px-3 py-2 rounded-lg hover:bg-destructive/90"
+                          title="Delete Community"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </div>
         </div>
         
         <div className="flex items-center gap-6 text-sm text-muted-foreground">
           <div className="flex items-center gap-1">
             <Users className="w-4 h-4" />
-            <span>{currentCommunity.memberCount} members</span>
+            <span>{(state.communities.find(c => c.id === currentCommunity.id)?.member_count || 
+                   state.communities.find(c => c.id === currentCommunity.id)?.memberCount || 
+                   currentCommunity.memberCount || 0)} members</span>
           </div>
           <div className="flex items-center gap-1">
             <MessageCircle className="w-4 h-4" />
             <span>Real-time chat</span>
           </div>
+          {isMember && (
+            <span className="text-primary">✓ Member</span>
+          )}
         </div>
       </div>
 
@@ -232,144 +466,246 @@ const Community = () => {
       <div className="bg-card rounded-xl border border-border shadow-card p-6">
         <h2 className="text-lg font-semibold mb-4">Community Chat</h2>
         
-        {/* Messages */}
-        <div className="space-y-3 mb-4 h-80 overflow-y-auto">
-          {loading ? (
-            <div className="text-center text-muted-foreground">Loading messages...</div>
-          ) : (
-            <>
-              {messages.map(msg => (
-                <div key={msg.id} className="flex gap-3">
-                  <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-sm font-medium">
-                    {msg.username.charAt(0)}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm">{msg.username}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    
-                    {/* Check if message contains file info */}
-                    {msg.message.includes('📎') && msg.message.includes('|') ? (
-                      (() => {
-                        const [displayText, fileInfoStr] = msg.message.split(' | ');
-                        try {
-                          const fileInfo = JSON.parse(fileInfoStr);
-                          return (
-                            <div className="bg-secondary p-3 rounded-lg max-w-xs">
-                              <div className="flex items-center gap-2 mb-2">
-                                {getFileIcon(fileInfo.fileName)}
-                                <span className="text-sm font-medium">{fileInfo.fileName}</span>
-                              </div>
-                              {fileInfo.fileSize && (
-                                <p className="text-xs text-muted-foreground mb-2">
-                                  {formatFileSize(fileInfo.fileSize)}
-                                </p>
-                              )}
-                              <a 
-                                href={fileInfo.fileUrl} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-primary hover:underline text-sm"
-                              >
-                                <Download className="w-3 h-3" />
-                                Download
-                              </a>
-                            </div>
-                          );
-                        } catch (e) {
-                          return <p className="text-sm">{msg.message}</p>;
-                        }
-                      })()
-                    ) : (
-                      /* Regular Text Message */
-                      <p className="text-sm">{msg.message}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </>
-          )}
-        </div>
-        
-        {/* Message Input */}
-        <div className="relative">
-          <div className="flex gap-2">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              className="hidden"
-              accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.txt,.zip,.rar"
-            />
-            
+        {!isMember ? (
+          <div className="text-center py-12">
+            <MessageCircle className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">Join to participate</h3>
+            <p className="text-muted-foreground mb-4">
+              You need to be a member of this community to view and send messages.
+            </p>
             <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="p-2 hover:bg-secondary rounded-lg disabled:opacity-50"
-              title="Attach file"
+              onClick={async () => {
+                const result = await joinCommunity();
+                if (!result.success) {
+                  alert(result.error);
+                }
+              }}
+              className="bg-primary text-primary-foreground px-6 py-2 rounded-lg hover:bg-primary/90 flex items-center gap-2 mx-auto"
             >
-              <Paperclip className="w-5 h-5" />
+              <UserPlus className="w-4 h-4" />
+              Join Community
             </button>
-            
-            <div className="relative">
-              <button
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="p-2 hover:bg-secondary rounded-lg"
-                title="Add emoji"
-              >
-                <Smile className="w-5 h-5" />
-              </button>
-              
-              {/* Emoji Picker */}
-              {showEmojiPicker && (
-                <div 
-                  ref={emojiPickerRef}
-                  className="absolute bottom-12 left-0 bg-card border border-border rounded-lg p-3 shadow-lg z-10 w-64"
-                >
-                  <div className="grid grid-cols-8 gap-1">
-                    {commonEmojis.map((emoji, index) => (
-                      <button
-                        key={index}
-                        onClick={() => addEmoji(emoji)}
-                        className="p-2 hover:bg-secondary rounded text-lg"
-                      >
-                        {emoji}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+          </div>
+        ) : (
+          <>
+            {/* Messages */}
+            <div className="space-y-3 mb-4 h-80 overflow-y-auto">
+              {loading ? (
+                <div className="text-center text-muted-foreground">Loading messages...</div>
+              ) : (
+                <>
+                  {messages.map(msg => (
+                    <div key={msg.id} className="flex gap-3">
+                      <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-sm font-medium">
+                        {msg.username.charAt(0)}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-sm">{msg.username}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        
+                        {/* Check if message contains file info */}
+                        {msg.message.includes('📎') && msg.message.includes('|') ? (
+                          (() => {
+                            const [displayText, fileInfoStr] = msg.message.split(' | ');
+                            try {
+                              const fileInfo = JSON.parse(fileInfoStr);
+                              return (
+                                <div className="bg-secondary p-3 rounded-lg max-w-xs">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    {getFileIcon(fileInfo.fileName)}
+                                    <span className="text-sm font-medium">{fileInfo.fileName}</span>
+                                  </div>
+                                  {fileInfo.fileSize && (
+                                    <p className="text-xs text-muted-foreground mb-2">
+                                      {formatFileSize(fileInfo.fileSize)}
+                                    </p>
+                                  )}
+                                  <a 
+                                    href={fileInfo.fileUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-primary hover:underline text-sm"
+                                  >
+                                    <Download className="w-3 h-3" />
+                                    Download
+                                  </a>
+                                </div>
+                              );
+                            } catch (e) {
+                              return <p className="text-sm">{msg.message}</p>;
+                            }
+                          })()
+                        ) : (
+                          /* Regular Text Message */
+                          <p className="text-sm">{msg.message}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </>
               )}
             </div>
             
-            <input
-              type="text"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-              placeholder="Type a message..."
-              className="flex-1 px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-            
-            <button
-              onClick={sendMessage}
-              disabled={!message.trim()}
-              className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 flex items-center gap-2 disabled:opacity-50"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
-          
-          {uploading && (
-            <div className="mt-2 text-sm text-muted-foreground">
-              Uploading file...
+            {/* Message Input - Only for members */}
+            <div className="relative">
+              <div className="flex gap-2">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.txt,.zip,.rar"
+                />
+                
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="p-2 hover:bg-secondary rounded-lg disabled:opacity-50"
+                  title="Attach file"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </button>
+                
+                <div className="relative">
+                  <button
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className="p-2 hover:bg-secondary rounded-lg"
+                    title="Add emoji"
+                  >
+                    <Smile className="w-5 h-5" />
+                  </button>
+                  
+                  {/* Emoji Picker */}
+                  {showEmojiPicker && (
+                    <div 
+                      ref={emojiPickerRef}
+                      className="absolute bottom-12 left-0 bg-card border border-border rounded-lg p-3 shadow-lg z-10 w-64"
+                    >
+                      <div className="grid grid-cols-8 gap-1">
+                        {commonEmojis.map((emoji, index) => (
+                          <button
+                            key={index}
+                            onClick={() => addEmoji(emoji)}
+                            className="p-2 hover:bg-secondary rounded text-lg"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <input
+                  type="text"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                  placeholder="Type a message..."
+                  className="flex-1 px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                
+                <button
+                  onClick={sendMessage}
+                  disabled={!message.trim()}
+                  className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+              
+              {uploading && (
+                <div className="mt-2 text-sm text-muted-foreground">
+                  Uploading file...
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
+      
+      {/* Members Modal */}
+      {showMembers && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-xl border border-border shadow-elevated p-6 w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-foreground">Community Members</h2>
+              <button
+                onClick={() => setShowMembers(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {loadingMembers ? (
+              <div className="text-center py-8">
+                <div className="text-muted-foreground">Loading members...</div>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto">
+                <div className="space-y-3">
+                  {members.map((member) => (
+                    <div key={member.user_id} className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
+                          <span className="text-sm font-medium text-primary">
+                            {(member.profiles?.full_name || 'User').charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="font-medium text-foreground">
+                            {member.profiles?.full_name || 'User'}
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            {member.role === 'admin' && (
+                              <span className="flex items-center gap-1 text-primary">
+                                <Crown className="w-3 h-3" />
+                                Admin
+                              </span>
+                            )}
+                            {member.role === 'member' && (
+                              <span>Member</span>
+                            )}
+                            <span>•</span>
+                            <span>Joined {new Date(member.joined_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Remove button - Only show for admin and not for other admins */}
+                      {isAdmin && member.role !== 'admin' && (
+                        <button
+                          onClick={() => {
+                            if (confirm(`Remove ${member.profiles?.full_name || 'this user'} from the community?`)) {
+                              removeMember(member.user_id);
+                            }
+                          }}
+                          className="text-destructive hover:bg-destructive/10 p-2 rounded-lg transition-colors"
+                          title="Remove member"
+                        >
+                          <UserX className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  
+                  {members.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No members found
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

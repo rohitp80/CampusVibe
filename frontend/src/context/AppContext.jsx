@@ -1,7 +1,7 @@
 // ConnectHub - Global State Context
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import { posts as initialPosts, events as initialEvents, users, chatRooms, studyNotes, connections, communities as initialCommunities } from '../data/dummyData.js';
 import { supabase } from '../lib/supabase';
+import { posts as initialPosts, events as initialEvents, users, chatRooms, studyNotes, connections, communities as initialCommunities } from '../data/dummyData.js';
 
 const AppContext = createContext();
 
@@ -259,13 +259,32 @@ const appReducer = (state, action) => {
       };
       return { ...state, events: [newEvent, ...state.events] };
       
+    case 'UPDATE_COMMUNITY_MEMBER_COUNT':
+      return {
+        ...state,
+        communities: state.communities.map(community =>
+          community.id === action.payload.communityId
+            ? { ...community, member_count: action.payload.newCount, memberCount: action.payload.newCount }
+            : community
+        )
+      };
+      
+    case 'DELETE_COMMUNITY':
+      return { 
+        ...state, 
+        communities: state.communities.filter(c => c.id !== action.payload)
+      };
+      
+    case 'LOAD_COMMUNITIES':
+      return { ...state, communities: action.payload };
+      
     case 'ADD_COMMUNITY':
       const newCommunity = {
         ...action.payload,
-        id: Date.now(),
-        memberCount: 1,
-        trending: false,
-        color: '#8B5CF6',
+        // Don't override the ID from backend - use the UUID from Supabase
+        memberCount: action.payload.member_count || 1,
+        trending: action.payload.trending || false,
+        color: action.payload.color || '#8B5CF6',
         tags: action.payload.tags || []
       };
       return { ...state, communities: [newCommunity, ...state.communities] };
@@ -451,7 +470,44 @@ export const AppProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [state.posts]);
   
+  // Load communities from API
+  const loadCommunities = async () => {
+    try {
+      const response = await fetch('http://localhost:3000/api/community/');
+      if (response.ok) {
+        const result = await response.json();
+        dispatch({ type: 'LOAD_COMMUNITIES', payload: result.data });
+      }
+    } catch (error) {
+      console.error('Failed to load communities:', error);
+    }
+  };
+
+  // Load communities on app start
+  useEffect(() => {
+    loadCommunities();
+    
+    // Listen for community deletion events
+    const handleCommunityDeleted = (event) => {
+      dispatch({ type: 'DELETE_COMMUNITY', payload: event.detail });
+    };
+    
+    // Listen for community updates (join/leave to refresh member counts)
+    const handleCommunityUpdated = () => {
+      loadCommunities();
+    };
+    
+    window.addEventListener('communityDeleted', handleCommunityDeleted);
+    window.addEventListener('communityUpdated', handleCommunityUpdated);
+    
+    return () => {
+      window.removeEventListener('communityDeleted', handleCommunityDeleted);
+      window.removeEventListener('communityUpdated', handleCommunityUpdated);
+    };
+  }, []);
+
   const actions = {
+    dispatch, // Expose dispatch for direct access
     login: (user) => dispatch({ type: 'LOGIN', payload: user }),
     logout: async () => {
       try {
@@ -477,7 +533,36 @@ export const AppProvider = ({ children }) => {
     joinCommunity: (communityId) => dispatch({ type: 'JOIN_COMMUNITY', payload: communityId }),
     leaveCommunity: (communityId) => dispatch({ type: 'LEAVE_COMMUNITY', payload: communityId }),
     addEvent: (event) => dispatch({ type: 'ADD_EVENT', payload: event }),
-    addCommunity: (community) => dispatch({ type: 'ADD_COMMUNITY', payload: community }),
+    addCommunity: async (community) => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          console.error('Not authenticated');
+          return;
+        }
+
+        const response = await fetch('http://localhost:3000/api/community/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify(community)
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          dispatch({ type: 'ADD_COMMUNITY', payload: result.data });
+          // Navigate to the new community as admin
+          dispatch({ type: 'SELECT_COMMUNITY', payload: result.data });
+          dispatch({ type: 'SET_CURRENT_PAGE', payload: 'community' });
+        } else {
+          console.error('Failed to create community');
+        }
+      } catch (error) {
+        console.error('Create community error:', error);
+      }
+    },
     setEventFilter: (filter) => dispatch({ type: 'SET_EVENT_FILTER', payload: filter }),
     toggleEventAttendance: (eventId) => dispatch({ type: 'TOGGLE_EVENT_ATTENDANCE', payload: eventId }),
     setActiveChat: (chatId) => dispatch({ type: 'SET_ACTIVE_CHAT', payload: chatId }),
