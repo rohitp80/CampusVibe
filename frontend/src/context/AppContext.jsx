@@ -1,6 +1,7 @@
 // ConnectHub - Global State Context
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { posts as initialPosts, events as initialEvents, users, chatRooms, studyNotes, connections } from '../data/dummyData.js';
+import { supabase } from '../lib/supabase';
 
 const AppContext = createContext();
 
@@ -224,6 +225,49 @@ const appReducer = (state, action) => {
 
 export const AppProvider = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
+  
+  // Initialize Supabase auth listener
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        dispatch({ 
+          type: 'LOGIN', 
+          payload: {
+            id: session.user.id,
+            email: session.user.email,
+            displayName: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email,
+            username: session.user.email.split('@')[0],
+            avatar: session.user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.email}`,
+            bio: 'Connected via Supabase',
+            isOnline: true
+          }
+        });
+      }
+    });
+
+    // Listen for auth changes (including OAuth callbacks)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        dispatch({ 
+          type: 'LOGIN', 
+          payload: {
+            id: session.user.id,
+            email: session.user.email,
+            displayName: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email,
+            username: session.user.email.split('@')[0],
+            avatar: session.user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.email}`,
+            bio: 'Connected via Supabase',
+            isOnline: true
+          }
+        });
+      } else {
+        dispatch({ type: 'LOGOUT' });
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
   
   // Initialize theme on mount
   useEffect(() => {

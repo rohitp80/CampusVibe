@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, Lock, User, GraduationCap, Eye, EyeOff } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 const Register = ({ onRegister, onSwitchToLogin }) => {
   const [formData, setFormData] = useState({
@@ -10,11 +11,54 @@ const Register = ({ onRegister, onSwitchToLogin }) => {
     university: ''
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (formData.displayName && formData.username && formData.email && formData.password && formData.university) {
-      onRegister(formData);
+    if (!formData.displayName || !formData.username || !formData.email || !formData.password || !formData.university) {
+      setError('Please fill in all fields');
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email.trim(),
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.displayName.trim(),
+            username: formData.username.trim(),
+            university: formData.university.trim()
+          }
+        }
+      });
+      
+      if (error) throw error;
+      
+      if (data.user) {
+        setSuccess('Account created successfully! You can now sign in.');
+        // Auto switch to login after 2 seconds
+        setTimeout(() => {
+          onSwitchToLogin();
+        }, 2000);
+      }
+    } catch (err) {
+      console.error('Registration error:', err);
+      if (err.message?.includes('User already registered')) {
+        setError('An account with this email already exists. Please sign in instead.');
+      } else if (err.message?.includes('Password should be at least 6 characters')) {
+        setError('Password must be at least 6 characters long.');
+      } else {
+        setError(err.message || 'Registration failed. Please try again.');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -123,11 +167,24 @@ const Register = ({ onRegister, onSwitchToLogin }) => {
             </div>
           </div>
 
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
+          )}
+
+          {success && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-green-600 text-sm">{success}</p>
+            </div>
+          )}
+
           <button
             type="submit"
-            className="w-full py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity"
+            disabled={loading}
+            className="w-full py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
           >
-            Create Account
+            {loading ? 'Creating Account...' : 'Create Account'}
           </button>
         </form>
 
