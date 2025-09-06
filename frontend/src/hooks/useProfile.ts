@@ -17,7 +17,7 @@ export const useUpdateProfile = () => {
   const { state } = useApp();
   
   return useMutation({
-    mutationFn: (updates: { full_name?: string; bio?: string; college?: string; course?: string; year?: number }) =>
+    mutationFn: (updates: { display_name?: string; bio?: string; college?: string; course?: string; year?: number }) =>
       api.profiles.update(updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile', state.currentUser?.id] });

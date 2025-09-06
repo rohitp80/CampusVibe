@@ -14,8 +14,8 @@ export const postsAPI = {
         .from('posts')
         .select(`
           *,
-          profiles:user_id(username, display_name, avatar_url),
-          communities:community_id(name, color)
+          profiles!user_id(username, display_name, avatar_url),
+          communities!community_id(name, color)
         `, { count: 'exact' })
         .order('created_at', { ascending: false })
         .range((page - 1) * limit, page * limit - 1)
@@ -68,13 +68,19 @@ export const postsAPI = {
       const { data, error } = await supabase
         .from('posts')
         .insert([{
-          ...postData,
-          user_id: user.id
+          content: postData.content,
+          type: postData.type,
+          is_anonymous: postData.is_anonymous || false,
+          user_id: user.id,
+          ...(postData.community_id && { community_id: postData.community_id }),
+          ...(postData.code_snippet && { code_snippet: postData.code_snippet }),
+          ...(postData.image_url && { image_url: postData.image_url }),
+          ...(postData.mood && { mood: postData.mood })
         }])
         .select(`
           *,
-          profiles:user_id(username, display_name, avatar_url),
-          communities:community_id(name, color)
+          profiles!user_id(username, display_name, avatar_url),
+          communities!community_id(name, color)
         `)
 
       if (error) throw error
@@ -94,8 +100,8 @@ export const postsAPI = {
         .eq('id', postId)
         .select(`
           *,
-          profiles:user_id(username, display_name, avatar_url),
-          communities:community_id(name, color)
+          profiles!user_id(username, display_name, avatar_url),
+          communities!community_id(name, color)
         `)
 
       if (error) throw error
@@ -159,7 +165,7 @@ export const postsAPI = {
         .from('post_comments')
         .select(`
           *,
-          profiles:user_id(username, display_name, avatar_url)
+          profiles!user_id(username, display_name, avatar_url)
         `)
         .eq('post_id', postId)
         .order('created_at', { ascending: true })
@@ -193,7 +199,7 @@ export const postsAPI = {
         }])
         .select(`
           *,
-          profiles:user_id(username, display_name, avatar_url)
+          profiles!user_id(username, display_name, avatar_url)
         `)
 
       if (error) throw error

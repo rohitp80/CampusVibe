@@ -16,7 +16,8 @@
     "test:comprehensive": "node test/comprehensive-backend.test.js",
     "test:all": "node test/run-all-tests.js",
     "dev": "node src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "setup-db": "node setup-database.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

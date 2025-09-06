@@ -6,306 +6,282 @@ const router = express.Router();
 // Get all posts
 router.get('/', async (req, res) => {
   try {
-    // Demo mode - return mock data
     if (!supabase) {
-      return res.json({
-        data: [
-          {
-            id: 1,
-            title: 'Demo Post',
-            content: 'This is a demo post - backend running in demo mode',
-            created_at: new Date().toISOString(),
-            user_id: 'demo-user',
-            profiles: { full_name: 'Demo User', avatar_url: null }
-          }
-        ],
-        count: 1,
-        page: 1,
-        totalPages: 1
-      });
+      return res.status(500).json({ error: 'Database not configured' });
     }
 
     const { page = 1, limit = 20, sort = 'latest' } = req.query;
     const offset = (page - 1) * limit;
     
-    // First try with profiles join, fallback to posts only
+    // Get posts with profile information
     let { data, error, count } = await supabase
       .from('posts')
       .select(`
         *,
-        profiles (
-          full_name,
-          avatar_url
-        )
+        profiles!user_id(username, display_name, avatar_url),
+        communities!community_id(name, color)
       `, { count: 'exact' })
-      .range(offset, offset + limit - 1)
-      .order('created_at', { ascending: false });
-
-    // If profiles table doesn't exist, get posts only
-    if (error && error.message.includes('does not exist')) {
-      const result = await supabase
-        .from('posts')
-        .select('*', { count: 'exact' })
-        .range(offset, offset + limit - 1)
-        .order('created_at', { ascending: false });
-      
-      data = result.data;
-      error = result.error;
-      count = result.count;
-    }
+      .order('created_at', { ascending: sort === 'oldest' })
+      .range(offset, offset + limit - 1);
 
     if (error) {
-      return res.status(400).json({
-        success: false,
-        error: { message: error.message, code: 'FETCH_ERROR' }
-      });
+      console.error('Posts fetch error:', error);
+      return res.status(500).json({ error: error.message });
     }
 
+    const totalPages = Math.ceil(count / limit);
+
     res.json({
-      success: true,
-      data,
-      meta: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: count,
-        totalPages: Math.ceil(count / limit)
-      }
+      data: data || [],
+      count,
+      page: parseInt(page),
+      totalPages,
+      hasMore: page < totalPages
     });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: { message: err.message, code: 'INTERNAL_ERROR' }
-    });
+
+  } catch (error) {
+    console.error('Posts route error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Create new post
 router.post('/', async (req, res) => {
   try {
-    // Demo mode - return success without saving
+    console.log('📝 POST /api/posts - Request body:', JSON.stringify(req.body, null, 2));
+    
     if (!supabase) {
-      const { title, content } = req.body;
-      return res.status(201).json({
-        success: true,
-        message: 'Post created successfully (demo mode)',
-        data: {
-          id: Date.now(),
-          title,
-          content,
-          created_at: new Date().toISOString(),
-          user_id: 'demo-user'
-        }
+      console.error('❌ Supabase client not initialized');
+      return res.status(500).json({ 
+        error: 'Database not configured',
+        details: 'Supabase client is null'
       });
     }
 
-    const { title, content, type = 'text', is_anonymous = false, tags = [] } = req.body;
+    const { content, type = 'text', is_anonymous = false, community_id, code_snippet, image_url, mood } = req.body;
+
+    if (!content) {
+      console.log('❌ Validation failed: Missing content');
+      return res.status(400).json({ error: 'Content is required' });
+    }
+
+    // Get user from auth header
     const authHeader = req.headers.authorization;
-
+    console.log('🔐 Auth header present:', !!authHeader);
+    
     if (!authHeader) {
-      return res.status(401).json({
-        success: false,
-        error: { message: 'Authorization required', code: 'UNAUTHORIZED' }
-      });
-    }
-
-    if (!title || !content) {
-      return res.status(400).json({
-        success: false,
-        error: { message: 'Title and content are required', code: 'MISSING_FIELDS' }
-      });
+      return res.status(401).json({ error: 'Authorization required' });
     }
 
     const token = authHeader.replace('Bearer ', '');
+    console.log('🎫 Token length:', token.length);
+    
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
-    if (authError || !user) {
-      return res.status(401).json({
-        success: false,
-        error: { message: 'Invalid token', code: 'UNAUTHORIZED' }
+    if (authError) {
+      console.error('❌ Auth error:', authError);
+      return res.status(401).json({ 
+        error: 'Invalid token',
+        details: authError.message 
       });
     }
+    
+    if (!user) {
+      console.error('❌ No user found');
+      return res.status(401).json({ error: 'User not found' });
+    }
 
-    // Try to insert with profiles join, fallback to basic insert
-    let { data, error } = await supabase
+    console.log('✅ Authenticated user:', user.id);
+
+    // Prepare insert data
+    const insertData = {
+      content,
+      type,
+      is_anonymous,
+      user_id: user.id,
+      ...(community_id && { community_id }),
+      ...(code_snippet && { code_snippet }),
+      ...(image_url && { image_url }),
+      ...(mood && { mood })
+    };
+    
+    console.log('📊 Insert data:', JSON.stringify(insertData, null, 2));
+
+    // Insert post
+    const { data, error } = await supabase
       .from('posts')
-      .insert({
-        title,
-        content,
-        type,
-        is_anonymous,
-        tags,
-        author_id: user.id
-      })
-      .select(`
-        *,
-        profiles (
-          full_name,
-          avatar_url
-        )
-      `)
+      .insert(insertData)
+      .select()
       .single();
 
-    // If profiles table doesn't exist, insert without join
-    if (error && error.message.includes('does not exist')) {
-      const result = await supabase
-        .from('posts')
-        .insert({
-          title,
-          content,
-          type,
-          is_anonymous,
-          tags,
-          author_id: user.id
-        })
-        .select()
-        .single();
-      
-      data = result.data;
-      error = result.error;
-    }
-
     if (error) {
-      return res.status(400).json({
-        success: false,
-        error: { message: error.message, code: 'CREATE_ERROR' }
+      console.error('❌ Supabase error:', JSON.stringify(error, null, 2));
+      return res.status(500).json({ 
+        error: 'Database error',
+        details: error.message,
+        code: error.code,
+        hint: error.hint
       });
     }
 
+    console.log('✅ Post created successfully:', data.id);
+    
     res.status(201).json({
       success: true,
+      message: 'Post created successfully',
       data
     });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: { message: err.message, code: 'INTERNAL_ERROR' }
+
+  } catch (error) {
+    console.error('💥 Unexpected error in POST /api/posts:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
 
-// Get single post
-router.get('/:id', async (req, res) => {
+// Check if user liked a post
+router.get('/:id/liked/:userId', async (req, res) => {
   try {
-    const { id } = req.params;
-
-    // Try with profiles join first
-    let { data, error } = await supabase
-      .from('posts')
-      .select(`
-        *,
-        profiles (
-          full_name,
-          avatar_url
-        )
-      `)
-      .eq('id', id)
-      .single();
-
-    // Fallback to posts only if profiles doesn't exist
-    if (error && error.message.includes('does not exist')) {
-      const result = await supabase
-        .from('posts')
-        .select('*')
-        .eq('id', id)
-        .single();
-      
-      data = result.data;
-      error = result.error;
-    }
-
-    if (error) {
-      return res.status(404).json({
-        success: false,
-        error: { message: 'Post not found', code: 'NOT_FOUND' }
-      });
-    }
-
-    res.json({
-      success: true,
-      data
-    });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: { message: err.message, code: 'INTERNAL_ERROR' }
-    });
+    const { id, userId } = req.params;
+    const likeKey = `${userId}:${id}`;
+    const liked = userLikes.has(likeKey);
+    
+    res.json({ liked });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Like/unlike post
+// In-memory like tracking (replace with database table later)
+const userLikes = new Map(); // Format: "user_id:post_id" -> true
+
+// Toggle like on post
 router.post('/:id/like', async (req, res) => {
   try {
     const { id } = req.params;
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader) {
-      return res.status(401).json({
-        success: false,
-        error: { message: 'Authorization required', code: 'UNAUTHORIZED' }
-      });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return res.status(401).json({
-        success: false,
-        error: { message: 'Invalid token', code: 'UNAUTHORIZED' }
-      });
-    }
-
-    // Check if likes table exists and if already liked
-    const { data: existingLike, error: likeError } = await supabase
-      .from('likes')
-      .select('id')
-      .eq('post_id', id)
-      .eq('user_id', user.id)
+    const { user_id = 'anonymous' } = req.body;
+    
+    const likeKey = `${user_id}:${id}`;
+    const hasLiked = userLikes.has(likeKey);
+    
+    // Get current post
+    const { data: post, error: fetchError } = await supabase
+      .from('posts')
+      .select('likes')
+      .eq('id', id)
       .single();
-
-    // If likes table doesn't exist, just return success
-    if (likeError && likeError.message.includes('does not exist')) {
-      return res.json({
-        success: true,
-        data: { liked: true, message: 'Likes table not yet created' }
-      });
+    
+    if (fetchError) {
+      return res.status(404).json({ error: 'Post not found' });
     }
-
-    if (existingLike) {
+    
+    let newLikes;
+    let liked;
+    
+    if (hasLiked) {
       // Unlike
-      const { error } = await supabase
-        .from('likes')
-        .delete()
-        .eq('post_id', id)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-
-      res.json({
-        success: true,
-        data: { liked: false }
-      });
+      userLikes.delete(likeKey);
+      newLikes = Math.max(0, (post.likes || 0) - 1);
+      liked = false;
     } else {
       // Like
-      const { error } = await supabase
-        .from('likes')
-        .insert({
-          post_id: id,
-          user_id: user.id
-        });
-
-      if (error) throw error;
-
-      res.json({
-        success: true,
-        data: { liked: true }
-      });
+      userLikes.set(likeKey, true);
+      newLikes = (post.likes || 0) + 1;
+      liked = true;
     }
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: { message: err.message, code: 'INTERNAL_ERROR' }
-    });
+    
+    // Update post likes count
+    const { error: updateError } = await supabase
+      .from('posts')
+      .update({ likes: newLikes })
+      .eq('id', id);
+    
+    if (updateError) {
+      return res.status(500).json({ error: updateError.message });
+    }
+    
+    res.json({ success: true, liked, likes: newLikes });
+    
+  } catch (error) {
+    console.error('Like toggle error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get comments for a post
+router.get('/:id/comments', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { data, error } = await supabase
+      .from('post_comments')
+      .select(`
+        *,
+        profiles!user_id(username, display_name, avatar_url)
+      `)
+      .eq('post_id', id)
+      .order('created_at', { ascending: true });
+    
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+    
+    res.json({ data: data || [] });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Add comment to post
+router.post('/:id/comments', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content } = req.body;
+    
+    if (!content?.trim()) {
+      return res.status(400).json({ error: 'Comment content is required' });
+    }
+    
+    // Get user from auth header
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Authorization required' });
+    }
+    
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+    
+    // Add comment
+    const { data: comment, error: commentError } = await supabase
+      .from('post_comments')
+      .insert({
+        post_id: id,
+        user_id: user.id,
+        content: content.trim()
+      })
+      .select(`
+        *,
+        profiles!user_id(username, display_name, avatar_url)
+      `)
+      .single();
+    
+    if (commentError) {
+      return res.status(500).json({ error: commentError.message });
+    }
+    
+    // Update post comment count
+    const { error: updateError } = await supabase.rpc('increment_post_comments', { post_id: id });
+    
+    res.status(201).json({ success: true, data: comment });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
