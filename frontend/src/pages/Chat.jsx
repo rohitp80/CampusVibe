@@ -100,7 +100,8 @@ const Chat = () => {
                          type === 'video' ? `🎥 Video: ${file.name}` :
                          `📄 ${file.name}`;
 
-      const messageType = type === 'document' ? 'file' : type; // Use 'file' instead of 'document'
+      const messageType = type === 'document' ? 'file' : 
+                         type === 'video' ? 'file' : type; // Use 'file' for both document and video
       await sendFileMessage(fileMessage, messageType, publicUrl, file.name);
       
     } catch (error) {
@@ -480,7 +481,7 @@ const Chat = () => {
                                 </div>
                               )}
                             </div>
-                          ) : message.message_type === 'video' ? (
+                          ) : message.message_type === 'file' && message.file_name && /\.(mp4|mov|avi|webm)$/i.test(message.file_name) ? (
                             <div>
                               {message.file_url ? (
                                 <video 
