@@ -94,7 +94,7 @@ const Chat = () => {
 
   const setupRealtimeSubscription = () => {
     subscriptionRef.current = supabase
-      .channel(`messages:${currentUserId}_${selectedFriend.id}`)
+      .channel('messages')
       .on(
         'postgres_changes',
         {
@@ -102,30 +102,23 @@ const Chat = () => {
           schema: 'public',
           table: 'messages'
         },
-        async (payload) => {
+        (payload) => {
           // Only add message if it's from current conversation participants
           if (payload.new.user_id === currentUserId || payload.new.user_id === selectedFriend.id) {
-            // Fetch the complete message with profile data
-            const { data } = await supabase
-              .from('messages')
-              .select(`
-                id,
-                content,
-                created_at,
-                user_id,
-                profiles:user_id (
-                  id,
-                  username,
-                  display_name,
-                  avatar_url
-                )
-              `)
-              .eq('id', payload.new.id)
-              .single();
-
-            if (data) {
-              setMessages(prev => [...prev, data]);
-            }
+            const newMessage = {
+              id: payload.new.id,
+              content: payload.new.content,
+              created_at: payload.new.created_at,
+              user_id: payload.new.user_id,
+              profiles: {
+                id: payload.new.user_id,
+                username: payload.new.user_id === currentUserId ? 'You' : selectedFriend.username,
+                display_name: payload.new.user_id === currentUserId ? 'You' : selectedFriend.display_name,
+                avatar_url: payload.new.user_id === currentUserId ? null : selectedFriend.avatar_url
+              }
+            };
+            
+            setMessages(prev => [...prev, newMessage]);
           }
         }
       )
