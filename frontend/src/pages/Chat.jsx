@@ -26,11 +26,17 @@ const Chat = () => {
     getCurrentUser();
   }, []);
 
-  // Load messages when friend is selected
+  // Load messages when friend is selected and poll for new messages
   useEffect(() => {
     if (selectedFriend) {
-      // Try real API first, fallback to demo
       loadMessages(selectedFriend.id);
+      
+      // Poll for new messages every 2 seconds
+      const interval = setInterval(() => {
+        loadMessages(selectedFriend.id);
+      }, 2000);
+      
+      return () => clearInterval(interval);
     }
   }, [selectedFriend]);
 
@@ -50,14 +56,10 @@ const Chat = () => {
       if (response.ok) {
         const result = await response.json();
         setMessages(result.data || []);
-      } else {
-        console.log('API failed, using demo messages');
-        loadDemoMessages(friendId);
       }
     } catch (error) {
       console.error('Load messages error:', error);
-      // Fallback to demo messages
-      loadDemoMessages(friendId);
+      setMessages([]);
     } finally {
       setLoadingMessages(false);
     }
@@ -77,13 +79,8 @@ const Chat = () => {
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedFriend) return;
     
-    // Always try real messaging first
-    try {
-      await sendRealMessage();
-    } catch (error) {
-      console.log('Real messaging failed, using demo mode');
-      sendDemoMessage();
-    }
+    // Always try real messaging
+    await sendRealMessage();
   };
 
   const sendRealMessage = async () => {

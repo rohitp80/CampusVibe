@@ -64,11 +64,9 @@ const initialState = {
   currentPage: getInitialCurrentPage(), // Persist current page
   
   // Posts and feed
-  posts: initialPosts,
-  filteredPosts: initialPosts,
-  savedPosts: JSON.parse(localStorage.getItem('savedPosts') || '[]'),
   posts: loadStoredPosts(),
   filteredPosts: getInitialFilteredPosts(), // Restore filtered posts based on selected community
+  savedPosts: JSON.parse(localStorage.getItem('savedPosts') || '[]'),
   selectedCommunity: JSON.parse(localStorage.getItem('selectedCommunity') || 'null'),
   
   // Events
@@ -88,7 +86,6 @@ const initialState = {
   
   // UI state
   sidebarCollapsed: false,
-  currentPage: 'feed',
   isLoading: false,
   sessionLoading: true, // Add session loading state
   notifications: [],
