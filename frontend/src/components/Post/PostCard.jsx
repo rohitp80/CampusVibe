@@ -1,6 +1,7 @@
 // ConnectHub - Post Card Component
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
+import { supabase } from '../../lib/supabase.js';
 import { 
   Heart, 
   MessageCircle, 
@@ -27,49 +28,187 @@ const PostCard = ({ post, onPostDeleted }) => {
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingComments, setLoadingComments] = useState(false);
-  
-  // Fetch comments when showing comments section
-  const fetchComments = async () => {
-    if (loadingComments) return;
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  // Get current user ID
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setCurrentUserId(session.user.id);
+      }
+    };
+    getCurrentUser();
+  }, []);
+
+  // Load comment count on mount
+  useEffect(() => {
+    const loadCommentCount = async () => {
+      try {
+        const { count, error } = await supabase
+          .from('post_comments')
+          .select('*', { count: 'exact', head: true })
+          .eq('post_id', post.id);
+
+        if (!error && count !== null) {
+          setCommentCount(count);
+        }
+      } catch (error) {
+        console.error('Error loading comment count:', error);
+      }
+    };
     
+    loadCommentCount();
+  }, [post.id]);
+  
+  // Load comments when showComments is toggled
+  useEffect(() => {
+    if (showComments && comments.length === 0) {
+      loadComments();
+    }
+  }, [showComments]);
+
+  // Real-time subscription for comments using broadcast
+  useEffect(() => {
+    if (!showComments) return;
+
+    console.log('Setting up real-time subscription for post:', post.id);
+
+    const subscription = supabase
+      .channel(`post_comments:${post.id}`, {
+        config: {
+          broadcast: { self: true }
+        }
+      })
+      .on('broadcast', { event: 'new_comment' }, (payload) => {
+        console.log('Broadcast comment received:', payload);
+        
+        if (payload.payload.post_id === post.id) {
+          const newComment = {
+            ...payload.payload,
+            timestamp: new Date(payload.payload.timestamp) // Convert ISO string back to Date
+          };
+          console.log('Adding broadcast comment to UI:', newComment);
+          
+          setComments(prev => {
+            // Check if comment already exists to avoid duplicates
+            const exists = prev.find(c => c.id === newComment.id);
+            if (exists) {
+              console.log('Comment already exists, skipping');
+              return prev;
+            }
+            console.log('Adding new comment to list');
+            return [...prev, newComment];
+          });
+          setCommentCount(prev => prev + 1);
+        }
+      })
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+      });
+
+    return () => {
+      console.log('Unsubscribing from real-time comments');
+      subscription.unsubscribe();
+    };
+  }, [showComments, post.id]);
+
+  const loadComments = async () => {
     setLoadingComments(true);
     try {
-      const response = await fetch(`http://localhost:3000/api/posts/${post.id}/comments`);
-      if (response.ok) {
-        const result = await response.json();
-        setComments(result.data || []);
+      const { data, error } = await supabase
+        .from('post_comments')
+        .select(`
+          id,
+          content,
+          created_at,
+          profiles:user_id (
+            id,
+            username,
+            display_name,
+            avatar_url
+          )
+        `)
+        .eq('post_id', post.id)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Error loading comments:', error);
+      } else {
+        const formattedComments = data.map(comment => ({
+          id: comment.id,
+          content: comment.content,
+          timestamp: new Date(comment.created_at + 'Z'), // Handle UTC properly
+          username: comment.profiles?.username || 'User',
+          displayName: comment.profiles?.display_name || 'User',
+          avatar: comment.profiles?.avatar_url || '/api/placeholder/32/32'
+        }));
+        setComments(formattedComments);
+        setCommentCount(data.length); // Set count to actual number of comments from DB
       }
     } catch (error) {
-      console.error('Failed to fetch comments:', error);
+      console.error('Error loading comments:', error);
     } finally {
       setLoadingComments(false);
     }
   };
 
-  // Submit new comment
+  // Submit new comment with broadcast
   const handleSubmitComment = async () => {
-    if (!newComment.trim() || isSubmitting) return;
-    
+    if (!newComment.trim() || isSubmitting || !currentUserId) return;
+
     setIsSubmitting(true);
+    
+    // Get current user profile for optimistic update
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('username, display_name, avatar_url')
+      .eq('id', currentUserId)
+      .single();
+
     try {
-      const response = await fetch(`http://localhost:3000/api/posts/${post.id}/comments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer dummy-token' // Replace with real auth
-        },
-        body: JSON.stringify({ 
-          content: newComment.trim(),
-          currentUser: state.currentUser // Send current user data
+      const { data, error } = await supabase
+        .from('post_comments')
+        .insert({
+          post_id: post.id,
+          user_id: currentUserId,
+          content: newComment.trim()
         })
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        setComments(prev => [...prev, result.data]);
-        setCommentCount(prev => prev + 1);
+        .select('id, content, created_at')
+        .single();
+
+      if (error) {
+        console.error('Error adding comment:', error);
+        actions.addNotification({
+          id: Date.now(),
+          type: 'error',
+          message: 'Failed to add comment',
+          timestamp: new Date()
+        });
+      } else {
+        // Create comment object for broadcast
+        const commentForBroadcast = {
+          id: data.id,
+          content: data.content,
+          timestamp: new Date().toISOString(), // Use current time as ISO string
+          username: profile?.username || 'You',
+          displayName: profile?.display_name || 'You',
+          avatar: profile?.avatar_url || '/api/placeholder/32/32',
+          user_id: currentUserId,
+          post_id: post.id
+        };
+
+        // Broadcast to all subscribers
+        const channel = supabase.channel(`post_comments:${post.id}`);
+        await channel.send({
+          type: 'broadcast',
+          event: 'new_comment',
+          payload: commentForBroadcast
+        });
+
+        console.log('Comment broadcasted:', commentForBroadcast);
+
         setNewComment('');
-        
         actions.addNotification({
           id: Date.now(),
           type: 'success',
@@ -78,7 +217,7 @@ const PostCard = ({ post, onPostDeleted }) => {
         });
       }
     } catch (error) {
-      console.error('Failed to submit comment:', error);
+      console.error('Error adding comment:', error);
       actions.addNotification({
         id: Date.now(),
         type: 'error',
@@ -93,7 +232,7 @@ const PostCard = ({ post, onPostDeleted }) => {
   // Fetch comments when comments section is opened
   React.useEffect(() => {
     if (showComments && comments.length === 0) {
-      fetchComments();
+      loadComments();
     }
   }, [showComments]);
 
@@ -560,17 +699,17 @@ const PostCard = ({ post, onPostDeleted }) => {
           )}
           
           {/* Real Comments */}
-          {!loadingComments && comments.map((comment, index) => (
+          {!loadingComments && comments.map((comment) => (
             <div key={comment.id} className="flex gap-3">
               <img 
-                src={comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.profiles?.username || `user${index}`}`}
-                alt={comment.profiles?.display_name || `User ${index + 1}`}
+                src={comment.avatar}
+                alt={comment.displayName}
                 className="w-8 h-8 rounded-full"
               />
               <div className="flex-1 bg-secondary/30 rounded-lg px-3 py-2">
                 <p className="text-sm text-foreground">{comment.content}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {comment.profiles?.display_name || comment.profiles?.username || `Anonymous User ${index + 1}`} • {new Date(comment.created_at).toLocaleTimeString()}
+                  {comment.displayName} • {formatTimeAgo(comment.timestamp)}
                 </p>
               </div>
             </div>

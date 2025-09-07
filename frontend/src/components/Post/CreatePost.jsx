@@ -131,7 +131,6 @@ const CreatePost = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    alert('HandleSubmit called!'); // Simple test
     
     console.log('=== POST CREATION STARTED ===');
     console.log('Content:', content);
@@ -217,7 +216,7 @@ const CreatePost = () => {
       const postData = {
         user_id: selectedType.name === 'Anonymous' ? null : profile.id,
         community_id: selectedCommunity?.id || null,
-        type: selectedType.name.toLowerCase(),
+        type: selectedType.name === 'Anonymous' ? 'text' : selectedType.name.toLowerCase(), // Use 'text' for anonymous posts
         content: content.trim(),
         code_snippet: codeSnippet || null,
         image_url: imageUrl || null,
