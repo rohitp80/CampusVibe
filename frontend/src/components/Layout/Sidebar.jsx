@@ -133,18 +133,56 @@ const Sidebar = () => {
                     <h3 className="font-semibold text-sm text-foreground">Quick Moods</h3>
                   </div>
                   <div className="grid grid-cols-4 gap-2">
-                    {moods.slice(0, 8).map(mood => (
-                      <button
-                        key={mood.id}
-                        className="p-2 rounded-lg hover:bg-secondary/50 transition-colors group"
-                        title={mood.name}
-                      >
-                        <span className="text-lg group-hover:scale-110 transition-transform block">
-                          {mood.emoji}
-                        </span>
-                      </button>
-                    ))}
+                    {moods.slice(0, 8).map(mood => {
+                      const userId = state.currentUser?.id || state.currentUser?.username || 'anonymous';
+                      const today = new Date().toDateString();
+                      const lastSubmission = localStorage.getItem(`lastMoodSubmission_${userId}`);
+                      const todayMoodSubmitted = lastSubmission === today;
+                      const submittedMood = todayMoodSubmitted ? JSON.parse(localStorage.getItem(`todayMood_${userId}`) || 'null') : null;
+                      const isSelected = submittedMood?.value === mood.value;
+                      
+                      return (
+                        <button
+                          key={mood.id}
+                          onClick={() => {
+                            if (!todayMoodSubmitted) {
+                              const moodData = { emoji: mood.emoji, label: mood.name, value: mood.value };
+                              localStorage.setItem(`lastMoodSubmission_${userId}`, today);
+                              localStorage.setItem(`todayMood_${userId}`, JSON.stringify(moodData));
+                            }
+                          }}
+                          disabled={todayMoodSubmitted}
+                          className={`p-2 rounded-lg transition-colors group ${
+                            isSelected 
+                              ? 'bg-primary/20 border-2 border-primary' 
+                              : todayMoodSubmitted 
+                                ? 'opacity-50 cursor-not-allowed' 
+                                : 'hover:bg-secondary/50'
+                          }`}
+                          title={todayMoodSubmitted ? `Already selected: ${submittedMood?.label}` : mood.name}
+                        >
+                          <span className={`text-lg transition-transform block ${
+                            !todayMoodSubmitted ? 'group-hover:scale-110' : ''
+                          }`}>
+                            {mood.emoji}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
+                  {(() => {
+                    const userId = state.currentUser?.id || state.currentUser?.username || 'anonymous';
+                    const today = new Date().toDateString();
+                    const lastSubmission = localStorage.getItem(`lastMoodSubmission_${userId}`);
+                    const todayMoodSubmitted = lastSubmission === today;
+                    const submittedMood = todayMoodSubmitted ? JSON.parse(localStorage.getItem(`todayMood_${userId}`) || 'null') : null;
+                    
+                    return todayMoodSubmitted && (
+                      <div className="mt-3 text-xs text-center text-muted-foreground">
+                        Today: {submittedMood?.emoji} {submittedMood?.label}
+                      </div>
+                    );
+                  })()}
                 </div>
               </>
             )}

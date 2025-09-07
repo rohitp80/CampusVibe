@@ -24,6 +24,20 @@ const Wellness = () => {
   
   const userId = state.currentUser?.id || state.currentUser?.username || 'anonymous';
   
+  // Clear existing mood data on component mount (one-time reset)
+  React.useEffect(() => {
+    const resetKey = 'moodDataReset_v1';
+    if (!localStorage.getItem(resetKey)) {
+      // Clear all existing mood submissions
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('lastMoodSubmission_') || key.startsWith('todayMood_')) {
+          localStorage.removeItem(key);
+        }
+      });
+      localStorage.setItem(resetKey, 'true');
+    }
+  }, []);
+  
   // Check if mood was already submitted today
   const [todayMoodSubmitted, setTodayMoodSubmitted] = useState(() => {
     const today = new Date().toDateString();
@@ -45,11 +59,7 @@ const Wellness = () => {
       
       // If it's a new day, reset goals
       if (lastGoalsDate !== today) {
-        const defaultGoals = [
-          { id: 1, task: "Meditate for 10 minutes", completed: false },
-          { id: 2, task: "Take a 20-minute walk", completed: false },
-          { id: 3, task: "Practice gratitude journaling", completed: false },
-        ];
+        const defaultGoals = [];
         localStorage.setItem(`wellnessGoals_${userId}`, JSON.stringify(defaultGoals));
         localStorage.setItem(`wellnessGoalsDate_${userId}`, today);
         return defaultGoals;
@@ -57,17 +67,9 @@ const Wellness = () => {
       
       // Load existing goals for today
       const saved = localStorage.getItem(`wellnessGoals_${userId}`);
-      return saved ? JSON.parse(saved) : [
-        { id: 1, task: "Meditate for 10 minutes", completed: false },
-        { id: 2, task: "Take a 20-minute walk", completed: false },
-        { id: 3, task: "Practice gratitude journaling", completed: false },
-      ];
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return [
-        { id: 1, task: "Meditate for 10 minutes", completed: false },
-        { id: 2, task: "Take a 20-minute walk", completed: false },
-        { id: 3, task: "Practice gratitude journaling", completed: false },
-      ];
+      return [];
     }
   });
   

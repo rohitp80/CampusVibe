@@ -62,6 +62,7 @@ const initialState = {
   // App state
   theme: 'dark',
   currentPage: getInitialCurrentPage(), // Persist current page
+  selectedEventId: null,
   
   // Posts and feed
   posts: loadStoredPosts(),
@@ -125,6 +126,21 @@ const appReducer = (state, action) => {
       
     case 'SET_THEME':
       return { ...state, theme: action.payload };
+      
+    case 'SET_SELECTED_EVENT':
+      return { ...state, selectedEventId: action.payload, currentPage: 'eventDetail' };
+      
+    case 'ADD_EVENT_ANNOUNCEMENT':
+      const updatedEvents = state.events.map(event => {
+        if (event.id === action.payload.eventId) {
+          return {
+            ...event,
+            announcements: [...(event.announcements || []), action.payload.announcement]
+          };
+        }
+        return event;
+      });
+      return { ...state, events: updatedEvents };
       
     case 'SET_CURRENT_PAGE':
       console.log('Setting currentPage to:', action.payload);
@@ -287,7 +303,9 @@ const appReducer = (state, action) => {
         ...action.payload,
         id: Date.now(),
         attendees: 1,
-        isAttending: true
+        isAttending: true,
+        createdBy: state.currentUser?.username,
+        organizer: state.currentUser?.username || state.currentUser?.displayName
       };
       const newEventsList = [newEvent, ...state.events];
       // Save to localStorage
@@ -328,7 +346,7 @@ const appReducer = (state, action) => {
       return { ...state, eventFilter: action.payload };
       
     case 'TOGGLE_EVENT_ATTENDANCE':
-      const updatedEvents = state.events.map(event => {
+      const eventsWithUpdatedAttendance = state.events.map(event => {
         if (event.id === action.payload) {
           return {
             ...event,
@@ -339,8 +357,8 @@ const appReducer = (state, action) => {
         return event;
       });
       // Save to localStorage
-      localStorage.setItem('campusVibe_events', JSON.stringify(updatedEvents));
-      return { ...state, events: updatedEvents };
+      localStorage.setItem('campusVibe_events', JSON.stringify(eventsWithUpdatedAttendance));
+      return { ...state, events: eventsWithUpdatedAttendance };
       
     case 'SET_ACTIVE_CHAT':
       return { ...state, activeChat: action.payload };
@@ -714,6 +732,11 @@ export const AppProvider = ({ children }) => {
     },
     setTheme: (theme) => dispatch({ type: 'SET_THEME', payload: theme }),
     setCurrentPage: (page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: page }),
+    setSelectedEvent: (eventId) => dispatch({ type: 'SET_SELECTED_EVENT', payload: eventId }),
+    addEventAnnouncement: (eventId, announcement) => dispatch({ 
+      type: 'ADD_EVENT_ANNOUNCEMENT', 
+      payload: { eventId, announcement } 
+    }),
     setSelectedChatFriend: (friend) => dispatch({ type: 'SET_SELECTED_CHAT_FRIEND', payload: friend }),
     toggleSidebar: () => dispatch({ type: 'TOGGLE_SIDEBAR' }),
     addPost: (post) => dispatch({ type: 'ADD_POST', payload: post }),
