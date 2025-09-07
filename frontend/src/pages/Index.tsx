@@ -26,7 +26,7 @@ const Index = () => {
       case 'wellness': return <Wellness />;
       case 'saved': return <SavedPosts />;
       case 'profile': return <Profile />;
-      case 'chat': return <Chat />;
+      case 'chat': return <Chat preSelectedFriend={state.selectedChatFriend} />;
       default: 
         console.log('Default case hit! currentPage was:', state.currentPage);
         return <Feed />;

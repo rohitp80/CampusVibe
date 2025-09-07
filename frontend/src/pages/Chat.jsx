@@ -3,11 +3,11 @@ import { useFriends } from '../hooks/useFriends.js';
 import { supabase } from '../lib/supabase';
 import { MessageCircle, Send, Users, User, Smile, Paperclip, Image, FileText, Video } from 'lucide-react';
 
-const Chat = () => {
+const Chat = ({ preSelectedFriend = null }) => {
   const { friends, loading } = useFriends();
   const displayFriends = friends;
   
-  const [selectedFriend, setSelectedFriend] = useState(null);
+  const [selectedFriend, setSelectedFriend] = useState(preSelectedFriend);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -17,6 +17,13 @@ const Chat = () => {
   const messagesEndRef = useRef(null);
   const subscriptionRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // Update selected friend when preSelectedFriend changes
+  useEffect(() => {
+    if (preSelectedFriend) {
+      setSelectedFriend(preSelectedFriend);
+    }
+  }, [preSelectedFriend]);
 
   // Get current user on mount
   useEffect(() => {
@@ -226,6 +233,14 @@ const Chat = () => {
       }
 
       setMessages(data || []);
+
+      // Mark messages from selected friend as read
+      await supabase
+        .from('chat_messages')
+        .update({ is_read: true })
+        .eq('sender_id', selectedFriend.id)
+        .eq('receiver_id', currentUserId)
+        .eq('is_read', false);
       
     } catch (error) {
       console.error('Error loading messages:', error);
