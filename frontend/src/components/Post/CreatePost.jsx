@@ -77,14 +77,19 @@ const CreatePost = () => {
     setUploading(true);
     
     try {
+      // Create preview first
       const reader = new FileReader();
       reader.onload = (e) => setImagePreview(e.target.result);
       reader.readAsDataURL(file);
 
-      const fileName = `${Date.now()}-${file.name}`;
+      // Upload to Supabase storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `post-images/${fileName}`;
+
       const { data, error } = await supabase.storage
-        .from('post-images')
-        .upload(fileName, file);
+        .from('chat-files') // Use existing bucket
+        .upload(filePath, file);
 
       if (error) {
         console.error('Upload error:', error);
@@ -92,13 +97,13 @@ const CreatePost = () => {
         actions.addNotification({
           id: Date.now(),
           type: 'warning',
-          message: 'Using local image (storage not configured)',
+          message: 'Using local image (storage error)',
           timestamp: new Date()
         });
       } else {
         const { data: { publicUrl } } = supabase.storage
-          .from('post-images')
-          .getPublicUrl(fileName);
+          .from('chat-files')
+          .getPublicUrl(filePath);
         
         setImageUrl(publicUrl);
         setImage(file);
@@ -126,20 +131,71 @@ const CreatePost = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    alert('HandleSubmit called!'); // Simple test
     
-    if (!content.trim() && !imagePreview && !codeSnippet) return;
+    console.log('=== POST CREATION STARTED ===');
+    console.log('Content:', content);
+    console.log('Image preview:', imagePreview);
+    console.log('Code snippet:', codeSnippet);
+    
+    if (!content.trim() && !imagePreview && !codeSnippet) {
+      console.log('No content provided, exiting');
+      return;
+    }
+    
+    console.log('Getting user session...');
+    // Get current user session
+    const { data: { session } } = await supabase.auth.getSession();
+    console.log('Session:', session);
+    
+    if (!session?.user) {
+      console.log('No session found');
+      actions.addNotification({
+        id: Date.now(),
+        type: 'error',
+        message: 'Please log in to create a post',
+        timestamp: new Date()
+      });
+      return;
+    }
+
+    console.log('Getting user profile...');
+    // Get user profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url')
+      .eq('id', session.user.id)
+      .single();
+
+    console.log('Profile data:', profile);
+
+    if (!profile) {
+      console.log('No profile found');
+      actions.addNotification({
+        id: Date.now(),
+        type: 'error',
+        message: 'User profile not found',
+        timestamp: new Date()
+      });
+      return;
+    }
+
+    // Create temporary ID for optimistic update
+    const tempId = `temp_${Date.now()}`;
     
     const newPost = {
-      userId: selectedType.name === 'Anonymous' ? 0 : state.currentUser.id,
-      username: selectedType.name === 'Anonymous' ? 'anonymous' : state.currentUser.username,
-      author: selectedType.name === 'Anonymous' ? 'anonymous' : state.currentUser.username,
-      displayName: selectedType.name === 'Anonymous' ? '' : state.currentUser.displayName,
-      avatar: selectedType.name === 'Anonymous' ? '/api/placeholder/40/40' : state.currentUser.avatar,
+      id: tempId, // Temporary ID
+      userId: selectedType.name === 'Anonymous' ? null : profile.id,
+      username: selectedType.name === 'Anonymous' ? 'anonymous' : profile.username,
+      author: selectedType.name === 'Anonymous' ? 'anonymous' : profile.username,
+      displayName: selectedType.name === 'Anonymous' ? '' : profile.display_name,
+      avatar: selectedType.name === 'Anonymous' ? '/api/placeholder/40/40' : profile.avatar_url,
       community: selectedCommunity?.name || 'General',
       mood: selectedMood?.name || 'neutral',
       type: selectedType.name.toLowerCase(),
       content: content.trim(),
       isAnonymous: selectedType.name === 'Anonymous',
+      createdAt: new Date().toISOString(), // Use ISO string like database
       ...(imagePreview && { image: imagePreview }),
       ...(imageUrl && { imageUrl: imageUrl }),
       ...(codeSnippet && { codeSnippet }),
@@ -149,40 +205,115 @@ const CreatePost = () => {
       })
     };
     
-    // Add to your existing local state
+    // Add to local state immediately (optimistic update)
     actions.addPost(newPost);
     
-    // Also save to backend if authenticated
-    if (state.isAuthenticated && content.trim()) {
-      try {
-        const result = await createPostMutation.mutateAsync({
-          content: content.trim(),
-          type: selectedType.name.toLowerCase(),
-          is_anonymous: selectedType.name === 'Anonymous',
-          ...(selectedCommunity && { community_id: selectedCommunity.id }),
-          ...(codeSnippet && { code_snippet: codeSnippet }),
-          ...(imageUrl && { image_url: imageUrl }),
-          ...(selectedMood && { mood: selectedMood.name })
+    // Save to Supabase database
+    try {
+      console.log('Attempting to save post to database...');
+      console.log('Profile data:', profile);
+      console.log('Selected community:', selectedCommunity);
+      
+      const postData = {
+        user_id: selectedType.name === 'Anonymous' ? null : profile.id,
+        community_id: selectedCommunity?.id || null,
+        type: selectedType.name.toLowerCase(),
+        content: content.trim(),
+        code_snippet: codeSnippet || null,
+        image_url: imageUrl || null,
+        mood: selectedMood?.name || null,
+        is_anonymous: selectedType.name === 'Anonymous',
+        likes: 0,
+        comments: 0
+      };
+      
+      console.log('Selected type name:', selectedType.name);
+      console.log('Type value (lowercase):', selectedType.name.toLowerCase());
+      console.log('Selected mood:', selectedMood?.name);
+      console.log('Post data to insert:', postData);
+      
+      const { data, error } = await supabase
+        .from('posts')
+        .insert(postData)
+        .select(`
+          id,
+          user_id,
+          community_id,
+          type,
+          content,
+          code_snippet,
+          image_url,
+          mood,
+          is_anonymous,
+          likes,
+          comments,
+          created_at,
+          updated_at,
+          profiles:user_id (
+            id,
+            username,
+            display_name,
+            avatar_url
+          ),
+          communities:community_id (
+            id,
+            name
+          )
+        `)
+        .single();
+
+      console.log('Database response:', { data, error });
+
+      if (error) {
+        console.error('Database insert error:', error);
+        // Remove the optimistic update on error
+        actions.removePost(tempId);
+        actions.addNotification({
+          id: Date.now(),
+          type: 'error',
+          message: `Database error: ${error.message}`,
+          timestamp: new Date()
         });
+      } else {
+        console.log('Post saved successfully:', data);
+        // Update the existing optimistic post with real database data
+        const realPostUpdates = {
+          id: data.id, // Replace temp ID with real ID
+          userId: data.user_id,
+          username: data.is_anonymous ? 'anonymous' : data.profiles?.username,
+          author: data.is_anonymous ? 'anonymous' : data.profiles?.username,
+          displayName: data.is_anonymous ? '' : data.profiles?.display_name,
+          avatar: data.is_anonymous ? '/api/placeholder/40/40' : data.profiles?.avatar_url,
+          community: data.communities?.name || 'General',
+          likes: data.likes,
+          comments: data.comments,
+          // Keep the original timestamp from optimistic update
+          ...(data.image_url && { imageUrl: data.image_url }),
+          ...(data.code_snippet && { codeSnippet: data.code_snippet })
+        };
         
-        console.log('Post saved to backend:', result);
+        console.log('Updating post with:', realPostUpdates);
+        
+        // Update the existing post instead of removing and adding
+        actions.updatePost(tempId, realPostUpdates);
         
         actions.addNotification({
           id: Date.now(),
           type: 'success',
-          message: 'Post saved to backend successfully! 🚀',
-          timestamp: new Date()
-        });
-      } catch (error) {
-        console.error('Backend save failed:', error);
-        
-        actions.addNotification({
-          id: Date.now(),
-          type: 'warning',
-          message: 'Post created locally (backend unavailable)',
+          message: 'Post created successfully! 🚀',
           timestamp: new Date()
         });
       }
+    } catch (error) {
+      console.error('Database connection error:', error);
+      // Remove the optimistic update on error
+      actions.removePost(tempId);
+      actions.addNotification({
+        id: Date.now(),
+        type: 'error',
+        message: `Connection error: ${error.message}`,
+        timestamp: new Date()
+      });
     }
     
     // Reset form

@@ -19,25 +19,30 @@ const Feed = () => {
     const backendPosts = apiPosts?.data || [];
     
     // Convert backend posts to frontend format
-    const formattedBackendPosts = backendPosts.map(post => ({
-      id: post.id,
-      userId: post.user_id,
-      username: post.profiles?.username || 'User',
-      displayName: post.profiles?.display_name || 'User',
-      avatar: post.profiles?.avatar_url || '/api/placeholder/40/40',
-      community: post.communities?.name || 'General',
-      mood: post.mood || 'neutral',
-      type: post.type,
-      content: post.content,
-      isAnonymous: post.is_anonymous,
-      timestamp: new Date(post.created_at),
-      likes: post.likes || 0,
-      comments: post.comments || 0,
-      shares: 0,
-      isLiked: false, // Will be updated by individual PostCard components
-      ...(post.image_url && { image: post.image_url }),
-      ...(post.code_snippet && { codeSnippet: post.code_snippet })
-    }));
+    const formattedBackendPosts = backendPosts.map(post => {
+      // Convert UTC timestamp to local time properly
+      const utcTime = new Date(post.created_at + 'Z'); // Add 'Z' to ensure UTC parsing
+      
+      return {
+        id: post.id,
+        userId: post.user_id,
+        username: post.profiles?.username || 'User',
+        displayName: post.profiles?.display_name || 'User',
+        avatar: post.profiles?.avatar_url || '/api/placeholder/40/40',
+        community: post.communities?.name || 'General',
+        mood: post.mood || 'neutral',
+        type: post.type,
+        content: post.content,
+        isAnonymous: post.is_anonymous,
+        timestamp: utcTime, // Use properly converted UTC time
+        likes: post.likes || 0,
+        comments: post.comments || 0,
+        shares: 0,
+        isLiked: false, // Will be updated by individual PostCard components
+        ...(post.image_url && { image: post.image_url }),
+        ...(post.code_snippet && { codeSnippet: post.code_snippet })
+      };
+    });
     
     // Merge and deduplicate
     const combined = [...formattedBackendPosts, ...localPosts];
