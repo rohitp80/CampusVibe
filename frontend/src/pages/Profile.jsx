@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext.jsx';
+import { useUserProfile } from '../hooks/useUserProfile.js';
+import { safeRender, normalizeProfileData } from '../utils/profileUtils.js';
+import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import { useFriends } from '../hooks/useFriends.js';
 import FriendRequests from '../components/Notifications/FriendRequests.jsx';
 import { 
@@ -21,10 +24,11 @@ import {
   Bell,
   UserPlus,
   Check,
+  Loader2,
   Clock
 } from 'lucide-react';
 
-const Profile = () => {
+const ProfileContent = () => {
   const { state, actions } = useApp();
   const { sendFriendRequest, getFriendshipStatus, loading, friends } = useFriends();
   const [isEditing, setIsEditing] = useState(false);
@@ -32,9 +36,34 @@ const Profile = () => {
   const [friendshipStatus, setFriendshipStatus] = useState('none');
   const [statusLoading, setStatusLoading] = useState(false);
   
-  // Use viewingProfile if available, otherwise use currentUser
-  const profileUser = state.viewingProfile || state.currentUser;
+  // Determine if viewing another user's profile
   const isOwnProfile = !state.viewingProfile;
+  const viewingUserId = state.viewingProfile?.id;
+  
+  // Fetch complete profile data if viewing another user
+  const { profileData, loading: profileLoading, error: profileError } = useUserProfile(
+    isOwnProfile ? null : viewingUserId
+  );
+  
+  // Use fetched profile data for other users, current user data for own profile
+  const rawProfileUser = isOwnProfile 
+    ? state.currentUser 
+    : (profileData || state.viewingProfile); // Fallback to search data if profile fetch fails
+  
+  // Normalize profile data to prevent object rendering errors
+  const profileUser = normalizeProfileData(rawProfileUser);
+  
+  // Debug: Log the profileUser data
+  console.log('Raw Profile User Data:', rawProfileUser);
+  console.log('Normalized Profile User Data:', profileUser);
+  console.log('Is Own Profile:', isOwnProfile);
+  console.log('Profile Loading:', profileLoading);
+  console.log('Profile Error:', profileError);
+  
+  const isFriend = state.friends?.some(f => f.username === profileUser.username);
+  const hasPendingRequest = state.friendRequests?.some(req => 
+    req.from === state.currentUser?.username && req.to === profileUser.username
+  );
   // Check friendship status when viewing another user's profile
   useEffect(() => {
     if (!isOwnProfile && profileUser?.username && state.isAuthenticated) {
@@ -100,13 +129,72 @@ const Profile = () => {
     socialLinks: state.currentUser?.socialLinks || {}
   });
 
-  const handleSave = () => {
-    const updatedUser = {
-      ...state.currentUser,
-      ...editData
-    };
-    actions.login(updatedUser);
-    setIsEditing(false);
+  const handleSave = async () => {
+    try {
+      // Get current Supabase session
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        import.meta.env.VITE_SUPABASE_URL,
+        import.meta.env.VITE_SUPABASE_ANON_KEY
+      );
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        alert('Please log in to update your profile');
+        return;
+      }
+
+      const profileData = {
+        display_name: editData.displayName || null,
+        bio: editData.bio || null,
+        phone: editData.phone || null,
+        date_of_birth: editData.dateOfBirth || null,
+        gender: editData.gender || null,
+        location: editData.location || null,
+        university: editData.university || null,
+        course: editData.course || null,
+        department: editData.department || null,
+        graduation_year: editData.graduationYear ? parseInt(editData.graduationYear) : null,
+        interests: editData.interests || [],
+        skills: editData.skills || []
+      };
+
+      // Remove empty strings and convert to null
+      Object.keys(profileData).forEach(key => {
+        if (profileData[key] === '' || profileData[key] === undefined) {
+          profileData[key] = null;
+        }
+      });
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/profiles`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify(profileData)
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        // Update local state with saved data
+        const updatedUser = {
+          ...state.currentUser,
+          ...editData
+        };
+        actions.login(updatedUser);
+        setIsEditing(false);
+        console.log('Profile updated successfully');
+      } else {
+        console.error('Failed to update profile:', result.error);
+        alert('Failed to update profile: ' + (result.error?.message || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      alert('Error updating profile. Please try again.');
+    }
   };
 
   const handleCancel = () => {
@@ -151,6 +239,18 @@ const Profile = () => {
 
   if (!profileUser) return null;
 
+  // Show loading state when fetching another user's profile
+  if (!isOwnProfile && profileLoading) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="bg-card rounded-xl border border-border shadow-card p-12 text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Profile Header */}
@@ -174,10 +274,10 @@ const Profile = () => {
                   />
                 ) : (
                   <h1 className="text-2xl font-bold text-foreground">
-                    {profileUser.displayName || profileUser.display_name}
+                    {safeRender(profileUser?.displayName || profileUser?.display_name)}
                   </h1>
                 )}
-                <p className="text-muted-foreground">@{profileUser.username}</p>
+                <p className="text-muted-foreground">@{safeRender(profileUser?.username)}</p>
                 
                 {/* Quick Stats */}
                 <div className="flex gap-4 mt-2">
@@ -269,7 +369,7 @@ const Profile = () => {
                   className="w-full h-20 p-3 bg-secondary/30 border border-border/50 rounded-lg resize-none text-foreground placeholder:text-muted-foreground"
                 />
               ) : (
-                <p className="text-foreground">{profileUser.bio || "No bio available"}</p>
+                <p className="text-foreground">{safeRender(profileUser?.bio, "No bio available")}</p>
               )}
             </div>
           </div>
@@ -285,34 +385,38 @@ const Profile = () => {
           </h3>
           
           <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <Mail className="w-4 h-4 text-muted-foreground" />
-              {isEditing ? (
-                <input
-                  type="email"
-                  value={editData.email}
-                  onChange={(e) => setEditData({...editData, email: e.target.value})}
-                  className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
-                />
-              ) : (
-                <span className="text-foreground">{state.currentUser.email}</span>
-              )}
-            </div>
+            {isOwnProfile && (
+              <div className="flex items-center gap-3">
+                <Mail className="w-4 h-4 text-muted-foreground" />
+                {isEditing ? (
+                  <input
+                    type="email"
+                    value={editData.email}
+                    onChange={(e) => setEditData({...editData, email: e.target.value})}
+                    className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
+                  />
+                ) : (
+                  <span className="text-foreground">{safeRender(profileUser?.email)}</span>
+                )}
+              </div>
+            )}
             
-            <div className="flex items-center gap-3">
-              <Phone className="w-4 h-4 text-muted-foreground" />
-              {isEditing ? (
-                <input
-                  type="tel"
-                  value={editData.phone}
-                  onChange={(e) => setEditData({...editData, phone: e.target.value})}
-                  placeholder="Phone number"
-                  className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
-                />
-              ) : (
-                <span className="text-foreground">{state.currentUser.phone || "Not provided"}</span>
-              )}
-            </div>
+            {isOwnProfile && (
+              <div className="flex items-center gap-3">
+                <Phone className="w-4 h-4 text-muted-foreground" />
+                {isEditing ? (
+                  <input
+                    type="tel"
+                    value={editData.phone}
+                    onChange={(e) => setEditData({...editData, phone: e.target.value})}
+                    placeholder="Phone number"
+                    className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
+                  />
+                ) : (
+                  <span className="text-foreground">{safeRender(profileUser?.phone)}</span>
+                )}
+              </div>
+            )}
             
             <div className="flex items-center gap-3">
               <Calendar className="w-4 h-4 text-muted-foreground" />
@@ -324,7 +428,7 @@ const Profile = () => {
                   className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
                 />
               ) : (
-                <span className="text-foreground">{state.currentUser.dateOfBirth || "Not provided"}</span>
+                <span className="text-foreground">DOB: {safeRender(profileUser?.dateOfBirth)}</span>
               )}
             </div>
             
@@ -343,7 +447,7 @@ const Profile = () => {
                   <option value="prefer_not_to_say">Prefer not to say</option>
                 </select>
               ) : (
-                <span className="text-foreground">{state.currentUser.gender || "Not specified"}</span>
+                <span className="text-foreground">Gender: {safeRender(profileUser?.gender, "Not specified")}</span>
               )}
             </div>
             
@@ -358,7 +462,7 @@ const Profile = () => {
                   className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
                 />
               ) : (
-                <span className="text-foreground">{state.currentUser.location || "Not provided"}</span>
+                <span className="text-foreground">Location: {safeRender(profileUser?.location)}</span>
               )}
             </div>
           </div>
@@ -383,7 +487,7 @@ const Profile = () => {
                   className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
                 />
               ) : (
-                <span className="text-foreground">{state.currentUser.university || "Not provided"}</span>
+                <span className="text-foreground">University: {safeRender(profileUser?.university)}</span>
               )}
             </div>
             
@@ -398,7 +502,7 @@ const Profile = () => {
                   className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
                 />
               ) : (
-                <span className="text-foreground">{state.currentUser.course || "Not provided"}</span>
+                <span className="text-foreground">Course: {safeRender(profileUser?.course)}</span>
               )}
             </div>
             
@@ -413,7 +517,7 @@ const Profile = () => {
                   className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
                 />
               ) : (
-                <span className="text-foreground">{state.currentUser.department || "Not provided"}</span>
+                <span className="text-foreground">Department: {safeRender(profileUser?.department)}</span>
               )}
             </div>
             
@@ -430,7 +534,7 @@ const Profile = () => {
                   className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
                 />
               ) : (
-                <span className="text-foreground">{state.currentUser.graduationYear || "Not provided"}</span>
+                <span className="text-foreground">Graduation: {safeRender(profileUser?.graduationYear)}</span>
               )}
             </div>
           </div>
@@ -446,10 +550,10 @@ const Profile = () => {
           </h3>
           
           <div className="flex flex-wrap gap-2 mb-4">
-            {(state.currentUser.interests || []).map((interest, index) => (
+            {(isEditing ? editData.interests : profileUser.interests || []).map((interest, index) => (
               <span key={index} className="px-3 py-1 bg-primary/20 text-primary rounded-full text-sm flex items-center gap-2">
                 {interest}
-                {isEditing && (
+                {isEditing && isOwnProfile && (
                   <button onClick={() => removeInterest(interest)} className="hover:text-destructive">
                     <X className="w-3 h-3" />
                   </button>
@@ -458,7 +562,7 @@ const Profile = () => {
             ))}
           </div>
           
-          {isEditing && (
+          {isEditing && isOwnProfile && (
             <input
               type="text"
               placeholder="Add interest (press Enter)"
@@ -480,10 +584,10 @@ const Profile = () => {
           </h3>
           
           <div className="flex flex-wrap gap-2 mb-4">
-            {(state.currentUser.skills || []).map((skill, index) => (
+            {(isEditing ? editData.skills : profileUser.skills || []).map((skill, index) => (
               <span key={index} className="px-3 py-1 bg-secondary/50 text-secondary-foreground rounded-full text-sm flex items-center gap-2">
                 {skill}
-                {isEditing && (
+                {isEditing && isOwnProfile && (
                   <button onClick={() => removeSkill(skill)} className="hover:text-destructive">
                     <X className="w-3 h-3" />
                   </button>
@@ -492,7 +596,7 @@ const Profile = () => {
             ))}
           </div>
           
-          {isEditing && (
+          {isEditing && isOwnProfile && (
             <input
               type="text"
               placeholder="Add skill (press Enter)"
@@ -659,6 +763,14 @@ const Profile = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+const Profile = () => {
+  return (
+    <ErrorBoundary>
+      <ProfileContent />
+    </ErrorBoundary>
   );
 };
 
