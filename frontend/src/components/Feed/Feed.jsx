@@ -134,7 +134,6 @@ const Feed = () => {
         </div>
       </div>
       
-      <FriendRequests />
 
       {/* Community Filter Banner */}
       {state.selectedCommunity && (
