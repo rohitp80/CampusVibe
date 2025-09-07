@@ -12,6 +12,7 @@ import Wellness from './Wellness';
 import Profile from './Profile';
 import Chat from './Chat';
 import SavedPosts from './SavedPosts';
+import EventDetail from './EventDetail';
 
 const Index = () => {
   const { state, actions } = useApp();
@@ -27,6 +28,7 @@ const Index = () => {
       case 'saved': return <SavedPosts />;
       case 'profile': return <Profile />;
       case 'chat': return <Chat preSelectedFriend={state.selectedChatFriend} />;
+      case 'eventDetail': return <EventDetail />;
       default: 
         console.log('Default case hit! currentPage was:', state.currentPage);
         return <Feed />;

@@ -14,6 +14,10 @@ import {
 const EventCard = ({ event }) => {
   const { actions } = useApp();
   
+  const handleEventClick = () => {
+    actions.setSelectedEvent(event.id);
+  };
+  
   const formatDate = (date) => {
     const today = new Date();
     const tomorrow = new Date(today);
@@ -49,7 +53,10 @@ const EventCard = ({ event }) => {
   };
   
   return (
-    <div className="bg-card rounded-xl border border-border shadow-card hover-lift overflow-hidden animate-fade-in">
+    <div 
+      onClick={handleEventClick}
+      className="bg-card rounded-xl border border-border shadow-card hover-lift overflow-hidden animate-fade-in cursor-pointer transition-transform hover:scale-105"
+    >
       {/* Event Image */}
       <div className="relative h-48 overflow-hidden">
         <img 

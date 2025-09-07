@@ -223,64 +223,7 @@ export const posts = [
   }
 ];
 
-export const events = [
-  {
-    id: 1,
-    title: "React Bootcamp Workshop",
-    description: "Learn React from scratch with hands-on coding exercises",
-    date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
-    time: "2:00 PM - 5:00 PM",
-    location: "Computer Science Building, Room 101",
-    organizer: "CodeCoffee Community",
-    attendees: 45,
-    maxAttendees: 60,
-    category: "Workshop",
-    isAttending: false,
-    image: "https://picsum.photos/seed/react/400/200"
-  },
-  {
-    id: 2,
-    title: "Study Group - Organic Chemistry",
-    description: "Group study session for upcoming midterm exam",
-    date: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), // Tomorrow
-    time: "7:00 PM - 9:00 PM",
-    location: "Library Study Room B",
-    organizer: "StudyBuddies Community",
-    attendees: 8,
-    maxAttendees: 12,
-    category: "Study Group",
-    isAttending: true,
-    image: "https://picsum.photos/seed/chemistry/400/200"
-  },
-  {
-    id: 3,
-    title: "Digital Art Exhibition",
-    description: "Showcase of student digital artwork and interactive installations",
-    date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days from now
-    time: "6:00 PM - 9:00 PM",
-    location: "Art Gallery, Main Campus",
-    organizer: "ArtistsCorner Community",
-    attendees: 127,
-    maxAttendees: 200,
-    category: "Exhibition",
-    isAttending: false,
-    image: "https://picsum.photos/seed/art/400/200"
-  },
-  {
-    id: 4,
-    title: "Mindfulness & Meditation Circle",
-    description: "Weekly meditation session for stress relief and mindfulness practice",
-    date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2 days from now
-    time: "5:30 PM - 6:30 PM",
-    location: "Wellness Center, Meditation Room",
-    organizer: "WellnessWarriors Community",
-    attendees: 23,
-    maxAttendees: 30,
-    category: "Wellness",
-    isAttending: true,
-    image: "https://picsum.photos/seed/meditation/400/200"
-  }
-];
+export const events = [];
 
 export const chatRooms = [
   {

@@ -7,6 +7,7 @@ import { AppProvider, useApp } from "./context/AppContext";
 import { queryClient } from "./lib/queryClient";
 import Index from "./pages/Index";
 import PostDetail from "./pages/PostDetail";
+import EventDetail from "./pages/EventDetail";
 import Communities from "./pages/Communities";
 import Explore from "./pages/Explore";
 import Community from "./pages/Community";
@@ -44,6 +45,7 @@ const AppContent = () => {
       <Routes>
         <Route path="/" element={<Index />} />
         <Route path="/post/:postId" element={<PostDetail />} />
+        <Route path="/event/:eventId" element={<EventDetail />} />
         <Route path="/communities" element={<Communities />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

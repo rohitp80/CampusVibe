@@ -17,29 +17,71 @@ import {
 } from 'lucide-react';
 
 const Wellness = () => {
-  const { actions } = useApp();
+  const { state, actions } = useApp();
   const [selectedMood, setSelectedMood] = useState(null);
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [newGoalText, setNewGoalText] = useState('');
+  
+  const userId = state.currentUser?.id || state.currentUser?.username || 'anonymous';
+  
+  // Clear existing mood data on component mount (one-time reset)
+  React.useEffect(() => {
+    const resetKey = 'moodDataReset_v1';
+    if (!localStorage.getItem(resetKey)) {
+      // Clear all existing mood submissions
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('lastMoodSubmission_') || key.startsWith('todayMood_')) {
+          localStorage.removeItem(key);
+        }
+      });
+      localStorage.setItem(resetKey, 'true');
+    }
+  }, []);
+  
+  // Check if mood was already submitted today
+  const [todayMoodSubmitted, setTodayMoodSubmitted] = useState(() => {
+    const today = new Date().toDateString();
+    const lastSubmission = localStorage.getItem(`lastMoodSubmission_${userId}`);
+    return lastSubmission === today;
+  });
+  
+  const [submittedMood, setSubmittedMood] = useState(() => {
+    if (todayMoodSubmitted) {
+      return JSON.parse(localStorage.getItem(`todayMood_${userId}`) || 'null');
+    }
+    return null;
+  });
+  
   const [todayGoals, setTodayGoals] = useState(() => {
     try {
-      const saved = localStorage.getItem('wellnessGoals');
-      return saved ? JSON.parse(saved) : [
-        { id: 1, task: "Meditate for 10 minutes", completed: false },
-        { id: 2, task: "Take a 20-minute walk", completed: true },
-        { id: 3, task: "Practice gratitude journaling", completed: false },
-        { id: 4, task: "Limit social media to 1 hour", completed: true }
-      ];
+      const today = new Date().toDateString();
+      const lastGoalsDate = localStorage.getItem(`wellnessGoalsDate_${userId}`);
+      
+      // If it's a new day, reset goals
+      if (lastGoalsDate !== today) {
+        const defaultGoals = [];
+        localStorage.setItem(`wellnessGoals_${userId}`, JSON.stringify(defaultGoals));
+        localStorage.setItem(`wellnessGoalsDate_${userId}`, today);
+        return defaultGoals;
+      }
+      
+      // Load existing goals for today
+      const saved = localStorage.getItem(`wellnessGoals_${userId}`);
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return [
-        { id: 1, task: "Meditate for 10 minutes", completed: false },
-        { id: 2, task: "Take a 20-minute walk", completed: true },
-        { id: 3, task: "Practice gratitude journaling", completed: false },
-        { id: 4, task: "Limit social media to 1 hour", completed: true }
-      ];
+      return [];
     }
   });
   
+  const handleMoodSubmit = (mood) => {
+    const today = new Date().toDateString();
+    localStorage.setItem(`lastMoodSubmission_${userId}`, today);
+    localStorage.setItem(`todayMood_${userId}`, JSON.stringify(mood));
+    setSubmittedMood(mood);
+    setTodayMoodSubmitted(true);
+    setSelectedMood(mood);
+  };
+
   const moods = [
     { emoji: "😊", label: "Happy", value: "happy" },
     { emoji: "😌", label: "Calm", value: "calm" },
@@ -50,14 +92,6 @@ const Wellness = () => {
     { emoji: "😢", label: "Sad", value: "sad" },
     { emoji: "🚀", label: "Motivated", value: "motivated" }
   ];
-  
-  const wellnessStats = {
-    streak: 7,
-    weeklyGoals: 12,
-    totalGoals: 15,
-    moodAverage: "Positive",
-    sleepAverage: "7.2h"
-  };
   
   const upcomingEvents = [
     {
@@ -81,7 +115,7 @@ const Wellness = () => {
       goal.id === goalId ? { ...goal, completed: !goal.completed } : goal
     );
     setTodayGoals(updatedGoals);
-    localStorage.setItem('wellnessGoals', JSON.stringify(updatedGoals));
+    localStorage.setItem(`wellnessGoals_${userId}`, JSON.stringify(updatedGoals));
   };
 
   const addNewGoal = () => {
@@ -93,7 +127,7 @@ const Wellness = () => {
       };
       const updatedGoals = [...todayGoals, newGoal];
       setTodayGoals(updatedGoals);
-      localStorage.setItem('wellnessGoals', JSON.stringify(updatedGoals));
+      localStorage.setItem(`wellnessGoals_${userId}`, JSON.stringify(updatedGoals));
       setNewGoalText('');
       setShowAddGoal(false);
     }
@@ -117,23 +151,6 @@ const Wellness = () => {
             </p>
           </div>
         </div>
-        
-        <div className="flex items-center gap-6 text-sm">
-          <div className="flex items-center gap-2">
-            <Award className="w-4 h-4 text-hub-success" />
-            <span className="text-muted-foreground">{wellnessStats.streak} day streak</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Target className="w-4 h-4 text-hub-primary" />
-            <span className="text-muted-foreground">
-              {wellnessStats.weeklyGoals}/{wellnessStats.totalGoals} weekly goals
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-hub-warning" />
-            <span className="text-muted-foreground">Mood: {wellnessStats.moodAverage}</span>
-          </div>
-        </div>
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -146,26 +163,44 @@ const Wellness = () => {
               How are you feeling today?
             </h2>
             
-            <div className="grid grid-cols-4 gap-3 mb-4">
-              {moods.map(mood => (
-                <button
-                  key={mood.value}
-                  onClick={() => setSelectedMood(mood)}
-                  className={`
-                    p-4 rounded-xl text-center transition-all duration-200 hover-lift
-                    ${selectedMood?.value === mood.value
-                      ? 'bg-primary/20 border-2 border-primary'
-                      : 'bg-secondary/20 border border-border/50 hover:bg-secondary/30'
-                    }
-                  `}
-                >
-                  <div className="text-2xl mb-1">{mood.emoji}</div>
-                  <div className="text-xs text-muted-foreground">{mood.label}</div>
-                </button>
-              ))}
-            </div>
+            {todayMoodSubmitted ? (
+              <div className="bg-gradient-to-r from-green-500/10 to-blue-500/10 rounded-lg p-4 border border-green-500/20">
+                <div className="flex items-center gap-3 mb-3">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <span className="text-sm font-medium text-foreground">Mood recorded for today!</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">{submittedMood?.emoji}</span>
+                  <span className="text-sm text-muted-foreground">
+                    You're feeling <strong>{submittedMood?.label}</strong> today.
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Come back tomorrow to record your mood again.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-4 gap-3 mb-4">
+                  {moods.map(mood => (
+                    <button
+                      key={mood.value}
+                      onClick={() => handleMoodSubmit(mood)}
+                      className="p-4 rounded-xl text-center transition-all duration-200 hover-lift bg-secondary/20 border border-border/50 hover:bg-secondary/30"
+                    >
+                      <div className="text-2xl mb-1">{mood.emoji}</div>
+                      <div className="text-xs text-muted-foreground">{mood.label}</div>
+                    </button>
+                  ))}
+                </div>
+                
+                <p className="text-xs text-muted-foreground text-center">
+                  Select how you're feeling to track your daily mood
+                </p>
+              </>
+            )}
             
-            {selectedMood && (
+            {selectedMood && !todayMoodSubmitted && (
               <div className="bg-gradient-to-r from-primary/5 to-hub-secondary/5 rounded-lg p-4 border border-primary/20 animate-fade-in">
                 <p className="text-sm text-foreground mb-3">
                   You're feeling <strong>{selectedMood.label}</strong> today. 
@@ -288,45 +323,6 @@ const Wellness = () => {
         
         {/* Right Column */}
         <div className="space-y-6">
-          {/* Upcoming Events */}
-          <div className="bg-card rounded-xl border border-border shadow-card p-6">
-            <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              Wellness Events
-            </h3>
-            
-            <div className="space-y-3">
-              {upcomingEvents.map(event => (
-                <div 
-                  key={event.id}
-                  className="p-3 bg-secondary/20 rounded-lg border border-border/50"
-                >
-                  <h4 className="font-medium text-foreground text-sm mb-1">
-                    {event.title}
-                  </h4>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    {event.time} • {event.type}
-                  </p>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Users className="w-3 h-3" />
-                    <span>{event.participants} participants</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            <button 
-              onClick={() => {
-                console.log('View All Events clicked');
-                actions.setEventFilter('Wellness');
-                actions.setCurrentPage('local');
-              }}
-              className="w-full mt-4 px-4 py-2 bg-secondary/50 hover:bg-secondary/70 rounded-lg text-sm font-medium transition-colors"
-            >
-              View All Events
-            </button>
-          </div>
-          
           {/* Emergency Resources */}
           <div className="bg-gradient-to-br from-hub-danger/5 to-hub-warning/5 rounded-xl p-6 border border-hub-danger/20">
             <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">

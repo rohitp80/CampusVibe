@@ -28,66 +28,6 @@ const RightSidebar = () => {
   
   return (
     <div className="hidden xl:block w-80 fixed right-0 top-16 h-[calc(100vh-4rem)] overflow-y-auto bg-card border-l border-border shadow-card p-6 space-y-6 z-20">
-      {/* Local Happenings */}
-      <div className="bg-gradient-to-br from-secondary/20 to-accent/20 rounded-xl p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Calendar className="w-5 h-5 text-hub-primary" />
-          <h3 className="font-semibold text-foreground">Local Happenings</h3>
-        </div>
-        
-        <div className="space-y-4">
-          {upcomingEvents.map(event => (
-            <div 
-              key={event.id} 
-              className="bg-card/50 rounded-lg p-4 border border-border/50 hover-lift cursor-pointer"
-            >
-              <div className="flex items-start gap-3">
-                <img 
-                  src={event.image} 
-                  alt={event.title}
-                  className="w-12 h-12 rounded-lg object-cover"
-                />
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-sm text-foreground truncate">
-                    {event.title}
-                  </h4>
-                  <div className="flex items-center gap-1 mt-1">
-                    <Clock className="w-3 h-3 text-muted-foreground" />
-                    <p className="text-xs text-muted-foreground">
-                      {event.date.toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 mt-1">
-                    <MapPin className="w-3 h-3 text-muted-foreground" />
-                    <p className="text-xs text-muted-foreground truncate">
-                      {event.location}
-                    </p>
-                  </div>
-                  
-                  <button
-                    onClick={() => actions.toggleEventAttendance(event.id)}
-                    className={`
-                      mt-2 px-3 py-1 rounded-full text-xs font-medium transition-colors
-                      ${event.isAttending 
-                        ? 'bg-hub-success/20 text-hub-success hover:bg-hub-success/30'
-                        : 'bg-primary/20 text-primary hover:bg-primary/30'
-                      }
-                    `}
-                  >
-                    {event.isAttending ? 'Attending' : 'RSVP'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-        
-        <button className="w-full mt-4 px-4 py-2 bg-secondary/50 hover:bg-secondary/70 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2">
-          <ExternalLink className="w-4 h-4" />
-          View All Events
-        </button>
-      </div>
-      
       {/* Quick Stats */}
       <div className="bg-gradient-to-br from-accent/5 to-muted/5 rounded-xl p-6">
         <h3 className="font-semibold text-foreground mb-4">Your Impact</h3>

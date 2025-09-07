@@ -94,17 +94,6 @@ const Local = () => {
             </p>
           </div>
         </div>
-        
-        <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-1">
-            <Navigation className="w-4 h-4 text-hub-accent" />
-            <span className="text-muted-foreground">Stanford University Campus</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Calendar className="w-4 h-4 text-hub-success" />
-            <span className="text-muted-foreground">{filteredEvents.length} upcoming events</span>
-          </div>
-        </div>
       </div>
       
       {/* Search and Filters */}
