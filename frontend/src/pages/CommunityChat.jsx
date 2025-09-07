@@ -2,28 +2,51 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { MessageCircle, Send, Users, User, Smile } from 'lucide-react';
 
-const CommunityChat = ({ communityId, communityName }) => {
+const CommunityChat = ({ communityId, communityName, isMember }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isUserMember, setIsUserMember] = useState(false);
   const messagesEndRef = useRef(null);
   const subscriptionRef = useRef(null);
 
   // Common emojis
   const emojis = ['😀', '😂', '😍', '🥰', '😊', '😎', '🤔', '😢', '😭', '😡', '👍', '👎', '❤️', '🔥', '💯', '🎉', '👏', '🙏', '💪', '✨'];
 
-  // Get current user on mount
+  // Get current user on mount and check membership
   useEffect(() => {
     const getCurrentUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setCurrentUserId(session.user.id);
+        if (communityId) {
+          checkMembership(session.user.id);
+        }
       }
     };
     getCurrentUser();
-  }, []);
+  }, [communityId]);
+
+  // Check if user is a member of the community
+  const checkMembership = async (userId) => {
+    try {
+      const { data } = await supabase
+        .from('community_members')
+        .select('id')
+        .eq('community_id', communityId)
+        .eq('user_id', userId)
+        .single();
+      
+      setIsUserMember(!!data);
+    } catch (error) {
+      setIsUserMember(false);
+    }
+  };
+
+  // Use isMember prop if provided, otherwise use local state
+  const canSendMessage = isMember !== undefined ? isMember : isUserMember;
 
   // Auto-scroll to bottom when new messages arrive
   const scrollToBottom = () => {
@@ -37,17 +60,54 @@ const CommunityChat = ({ communityId, communityName }) => {
   useEffect(() => {
     if (!communityId || !currentUserId) return;
 
+    console.log('CommunityChat: Setting up for community:', communityId, 'user:', currentUserId);
+    
     loadMessages();
     setupRealtimeSubscription();
 
     return () => {
+      console.log('CommunityChat: Cleaning up subscription');
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe();
       }
     };
   }, [communityId, currentUserId]);
 
-  // Close emoji picker when clicking outside
+  // Test database access
+  useEffect(() => {
+    const testDatabaseAccess = async () => {
+      if (!communityId || !currentUserId) return;
+      
+      console.log('🧪 Testing database access...');
+      
+      // Test 1: Can we read posts at all?
+      const { data: allPosts, error: allError } = await supabase
+        .from('posts')
+        .select('id, content, user_id, community_id')
+        .limit(5);
+      
+      console.log('📊 All posts test:', { data: allPosts, error: allError });
+      
+      // Test 2: Can we read posts for this community?
+      const { data: communityPosts, error: communityError } = await supabase
+        .from('posts')
+        .select('id, content, user_id, community_id')
+        .eq('community_id', communityId)
+        .limit(5);
+      
+      console.log('🏘️ Community posts test:', { data: communityPosts, error: communityError });
+      
+      // Test 3: Check if real-time is enabled
+      const { data: realtimeData, error: realtimeError } = await supabase
+        .from('posts')
+        .select('id')
+        .limit(1);
+      
+      console.log('⚡ Real-time test query:', { data: realtimeData, error: realtimeError });
+    };
+    
+    testDatabaseAccess();
+  }, [communityId, currentUserId]);
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (!event.target.closest('.emoji-picker') && !event.target.closest('.emoji-button')) {
@@ -62,40 +122,51 @@ const CommunityChat = ({ communityId, communityName }) => {
   const loadMessages = async () => {
     try {
       setLoadingMessages(true);
+      console.log('Loading messages for community:', communityId);
       
-      // Load community messages using existing schema
+      // Load community messages from posts table (only chat messages)
       const { data, error } = await supabase
-        .from('community_messages')
+        .from('posts')
         .select(`
           id,
-          message,
+          content,
           created_at,
           user_id,
-          username
+          profiles:user_id (
+            username,
+            display_name,
+            avatar_url
+          )
         `)
         .eq('community_id', communityId)
-        .order('created_at', { ascending: true });
+        .eq('is_chat_message', true)
+        .eq('community_id', communityId)
+        .order('created_at', { ascending: true })
+        .limit(100);
 
       if (error) {
         console.error('Error loading community messages:', error);
         return;
       }
 
+      console.log('Loaded messages:', data);
+
       // Transform data to match our component structure
       const transformedMessages = data?.map(msg => ({
         id: msg.id,
-        content: msg.message,
+        content: msg.content,
         created_at: msg.created_at,
         user_id: msg.user_id,
         profiles: {
           id: msg.user_id,
-          username: msg.username,
-          display_name: msg.username,
-          avatar_url: null
+          username: msg.profiles?.username || 'User',
+          display_name: msg.profiles?.display_name || 'User',
+          avatar_url: msg.profiles?.avatar_url
         }
       })) || [];
 
       setMessages(transformedMessages);
+      console.log('Set messages in state:', transformedMessages.length);
       
     } catch (error) {
       console.error('Error loading community messages:', error);
@@ -106,33 +177,59 @@ const CommunityChat = ({ communityId, communityName }) => {
 
   const setupRealtimeSubscription = () => {
     subscriptionRef.current = supabase
-      .channel(`community_chat:${communityId}`)
+      .channel(`community-chat-${communityId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'community_messages',
-          filter: `community_id=eq.${communityId}`
+          table: 'posts'
         },
         async (payload) => {
-          // Transform new message to match component structure
-          const newMessage = {
-            id: payload.new.id,
-            content: payload.new.message,
-            created_at: payload.new.created_at,
-            user_id: payload.new.user_id,
-            profiles: {
-              id: payload.new.user_id,
-              username: payload.new.username,
-              display_name: payload.new.username,
-              avatar_url: null
-            }
-          };
+          if (payload.new?.community_id === communityId && 
+              payload.new?.user_id !== currentUserId &&
+              payload.new?.is_chat_message === true) {
+            // Fetch complete message with profile data
+            const { data, error } = await supabase
+              .from('posts')
+              .select(`
+                id,
+                content,
+                created_at,
+                user_id,
+                profiles:user_id (
+                  username,
+                  display_name,
+                  avatar_url
+                )
+              `)
+              .eq('id', payload.new.id)
+              .single();
 
-          if (payload.new.user_id !== currentUserId) {
-            setMessages(prev => [...prev, newMessage]);
-            setTimeout(() => scrollToBottom(), 100);
+            if (!error && data) {
+              const newMessage = {
+                id: data.id,
+                content: data.content,
+                created_at: data.created_at,
+                user_id: data.user_id,
+                profiles: {
+                  id: data.user_id,
+                  username: data.profiles?.username || 'User',
+                  display_name: data.profiles?.display_name || 'User',
+                  avatar_url: data.profiles?.avatar_url
+                }
+              };
+
+              setMessages(prev => {
+                const exists = prev.find(msg => msg.id === newMessage.id);
+                if (!exists) {
+                  return [...prev, newMessage];
+                }
+                return prev;
+              });
+              
+              setTimeout(() => scrollToBottom(), 100);
+            }
           }
         }
       )
@@ -153,7 +250,7 @@ const CommunityChat = ({ communityId, communityName }) => {
     // Get current user profile for username
     const { data: profile } = await supabase
       .from('profiles')
-      .select('username')
+      .select('username, display_name, avatar_url')
       .eq('id', currentUserId)
       .single();
 
@@ -168,8 +265,8 @@ const CommunityChat = ({ communityId, communityName }) => {
       profiles: {
         id: currentUserId,
         username: username,
-        display_name: username,
-        avatar_url: null
+        display_name: profile?.display_name || username,
+        avatar_url: profile?.avatar_url
       }
     };
     
@@ -177,18 +274,29 @@ const CommunityChat = ({ communityId, communityName }) => {
     setTimeout(() => scrollToBottom(), 100);
 
     try {
-      const { error } = await supabase
-        .from('community_messages')
+      const { data, error } = await supabase
+        .from('posts')
         .insert({
-          message: messageContent,
+          content: messageContent,
           user_id: currentUserId,
-          username: username,
-          community_id: communityId
-        });
+          community_id: communityId,
+          type: 'text',
+          is_anonymous: false,
+          is_chat_message: true
+        })
+        .select()
+        .single();
 
       if (error) {
         console.error('Error sending message:', error);
         setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
+      } else {
+        // Replace temp message with real message
+        setMessages(prev => prev.map(msg => 
+          msg.id === tempMessage.id 
+            ? { ...tempMessage, id: data.id, created_at: data.created_at }
+            : msg
+        ));
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -292,54 +400,64 @@ const CommunityChat = ({ communityId, communityName }) => {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Message Input */}
-          <div className="p-4 border-t border-border relative">
-            {/* Emoji Picker */}
-            {showEmojiPicker && (
-              <div className="absolute bottom-16 left-4 bg-card border border-border rounded-lg p-3 shadow-lg z-10 emoji-picker">
-                <div className="grid grid-cols-5 gap-2 max-w-xs">
-                  {emojis.map((emoji, index) => (
-                    <button
-                      key={index}
-                      onClick={() => addEmoji(emoji)}
-                      className="text-xl hover:bg-secondary rounded p-1 transition-colors"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
+          {/* Message Input - Only for members */}
+          {canSendMessage ? (
+            <div className="p-4 border-t border-border relative">
+              {/* Emoji Picker */}
+              {showEmojiPicker && (
+                <div className="absolute bottom-16 left-4 bg-card border border-border rounded-lg p-3 shadow-lg z-10 emoji-picker">
+                  <div className="grid grid-cols-5 gap-2 max-w-xs">
+                    {emojis.map((emoji, index) => (
+                      <button
+                        key={index}
+                        onClick={() => addEmoji(emoji)}
+                        className="text-xl hover:bg-secondary rounded p-1 transition-colors"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+              )}
+
+              <div className="flex gap-2 items-center">
+                {/* Emoji Button */}
+                <button
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  className="p-2 hover:bg-secondary rounded-lg transition-colors emoji-button"
+                >
+                  <Smile className="w-4 h-4 text-muted-foreground" />
+                </button>
+
+                {/* Message Input */}
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder={`Message ${communityName || 'community'}...`}
+                  className="flex-1 px-4 py-2 bg-secondary/30 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder-muted-foreground"
+                />
+
+                {/* Send Button */}
+                <button
+                  onClick={sendMessage}
+                  disabled={!newMessage.trim()}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
               </div>
-            )}
-
-            <div className="flex gap-2 items-center">
-              {/* Emoji Button */}
-              <button
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="p-2 hover:bg-secondary rounded-lg transition-colors emoji-button"
-              >
-                <Smile className="w-4 h-4 text-muted-foreground" />
-              </button>
-
-              {/* Message Input */}
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder={`Message ${communityName || 'community'}...`}
-                className="flex-1 px-4 py-2 bg-secondary/30 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder-muted-foreground"
-              />
-
-              {/* Send Button */}
-              <button
-                onClick={sendMessage}
-                disabled={!newMessage.trim()}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-              >
-                <Send className="w-4 h-4" />
-              </button>
             </div>
-          </div>
+          ) : (
+            /* Non-member message */
+            <div className="p-4 border-t border-border text-center">
+              <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                <MessageCircle className="w-4 h-4" />
+                <span className="text-sm">Join this community to participate in discussions</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

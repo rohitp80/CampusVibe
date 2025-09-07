@@ -1,8 +1,9 @@
 // ConnectHub - Main Sidebar Component
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext.jsx';
 import { communities, moods } from '../../data/dummyData.js';
+import CreateCommunity from '../Community/CreateCommunity.jsx';
 import { 
   Home, 
   Search, 
@@ -19,6 +20,7 @@ import {
 
 const Sidebar = () => {
   const { state, actions } = useApp();
+  const [showCreateCommunity, setShowCreateCommunity] = useState(false);
   
   const navigationItems = [
     { id: 'feed', label: 'Feed', icon: Home },
@@ -32,14 +34,15 @@ const Sidebar = () => {
   const trendingCommunities = communities.filter(c => c.trending);
   
   return (
-    <aside className={`
-      fixed left-0 top-16 h-[calc(100vh-4rem)] bg-card border-r border-border shadow-card z-40
-      transition-all duration-300 ease-out
-      ${state.sidebarCollapsed 
-        ? 'w-16 -translate-x-full lg:translate-x-0' 
-        : 'w-80 translate-x-0'
-      }
-    `}>
+    <>
+      <aside className={`
+        fixed left-0 top-16 h-[calc(100vh-4rem)] bg-card border-r border-border shadow-card z-40
+        transition-all duration-300 ease-out
+        ${state.sidebarCollapsed 
+          ? 'w-16 -translate-x-full lg:translate-x-0' 
+          : 'w-80 translate-x-0'
+        }
+      `}>
       <div className="flex flex-col h-full">
         {/* Header */}
         <div className="p-6 border-b border-border">
@@ -98,9 +101,18 @@ const Sidebar = () => {
               <>
                 {/* Trending Communities */}
                 <div className="mt-8">
-                  <div className="flex items-center gap-2 mb-4">
-                    <TrendingUp className="w-4 h-4 text-hub-secondary" />
-                    <h3 className="font-semibold text-sm text-foreground">Trending</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-hub-secondary" />
+                      <h3 className="font-semibold text-sm text-foreground">Communities</h3>
+                    </div>
+                    <button
+                      onClick={() => setShowCreateCommunity(true)}
+                      className="w-6 h-6 rounded-md bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors"
+                      title="Create Community"
+                    >
+                      <Plus className="w-4 h-4 text-primary" />
+                    </button>
                   </div>
                   <div className="space-y-2">
                     {trendingCommunities.map(community => (
@@ -192,6 +204,12 @@ const Sidebar = () => {
         {/* Footer */}
         </div>
       </aside>
+
+      {/* Create Community Modal */}
+      {showCreateCommunity && (
+        <CreateCommunity onClose={() => setShowCreateCommunity(false)} />
+      )}
+    </>
   );
 };
 

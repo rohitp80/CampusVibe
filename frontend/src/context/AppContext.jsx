@@ -104,9 +104,7 @@ const initialState = {
 };
 
 const appReducer = (state, action) => {
-  console.log('Reducer action:', action.type, 'payload:', action.payload);
   if (action.type === 'SET_CURRENT_PAGE' || state.currentPage !== (action.type === 'SET_CURRENT_PAGE' ? action.payload : state.currentPage)) {
-    console.log('currentPage changing from', state.currentPage, 'to', action.type === 'SET_CURRENT_PAGE' ? action.payload : state.currentPage);
   }
   
   switch (action.type) {
@@ -173,6 +171,17 @@ const appReducer = (state, action) => {
         ...state, 
         posts: newPostsList,
         filteredPosts: [newPost, ...state.filteredPosts]
+      };
+      
+    case 'ADD_COMMUNITY':
+      const communityToAdd = {
+        ...action.payload,
+        id: action.payload.id,
+        member_count: action.payload.member_count || 1
+      };
+      return {
+        ...state,
+        communities: [communityToAdd, ...state.communities]
       };
       
     case 'UPDATE_POST':
@@ -528,10 +537,6 @@ const appReducer = (state, action) => {
         requests = [];
       }
       
-      console.log('REFRESHING - Current user:', state.currentUser?.username);
-      console.log('REFRESHING - All requests:', requests);
-      console.log('REFRESHING - My incoming:', requests.filter(r => r.to === state.currentUser?.username));
-      
       return {
         ...state,
         friendRequests: requests
@@ -771,6 +776,7 @@ export const AppProvider = ({ children }) => {
     updatePost: (postId, updates) => dispatch({ type: 'UPDATE_POST', payload: { postId, updates } }),
     removePost: (postId) => dispatch({ type: 'REMOVE_POST', payload: postId }),
     deletePost: (postId) => dispatch({ type: 'DELETE_POST', payload: postId }),
+    addCommunity: (community) => dispatch({ type: 'ADD_COMMUNITY', payload: community }),
     savePost: (post) => dispatch({ type: 'SAVE_POST', payload: post }),
     unsavePost: (postId) => dispatch({ type: 'UNSAVE_POST', payload: postId }),
     toggleLike: (postId) => dispatch({ type: 'TOGGLE_LIKE', payload: postId }),

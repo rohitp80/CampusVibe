@@ -15,12 +15,12 @@ import {
   Upload
 } from 'lucide-react';
 
-const CreatePost = () => {
+const CreatePost = ({ defaultCommunity, onPostCreated }) => {
   const { state, actions } = useApp();
   const createPostMutation = useCreatePost();
   const [content, setContent] = useState('');
   const [selectedMood, setSelectedMood] = useState(null);
-  const [selectedCommunity, setSelectedCommunity] = useState(null);
+  const [selectedCommunity, setSelectedCommunity] = useState(defaultCommunity || null);
   const [selectedType, setSelectedType] = useState(postTypes[0]);
   const [unlockDate, setUnlockDate] = useState('');
   const [image, setImage] = useState(null);
@@ -302,6 +302,11 @@ const CreatePost = () => {
           message: 'Post created successfully! 🚀',
           timestamp: new Date()
         });
+
+        // Call callback to refresh community posts
+        if (onPostCreated) {
+          onPostCreated();
+        }
       }
     } catch (error) {
       console.error('Database connection error:', error);
