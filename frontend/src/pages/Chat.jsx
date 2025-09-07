@@ -82,7 +82,7 @@ const Chat = () => {
       const filePath = `chat-files/${fileName}`;
 
       const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('chat-attachments')
+        .from('chat-files')
         .upload(filePath, file);
 
       if (uploadError) {
@@ -92,7 +92,7 @@ const Chat = () => {
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
-        .from('chat-attachments')
+        .from('chat-files')
         .getPublicUrl(filePath);
 
       // Send message with file attachment
