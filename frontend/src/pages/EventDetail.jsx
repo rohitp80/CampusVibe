@@ -96,6 +96,19 @@ const EventDetail = () => {
               <span>{event.attendees} attending</span>
             </div>
           </div>
+          
+          <div className="mt-4">
+            <button
+              onClick={() => actions.toggleEventAttendance(event.id)}
+              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                event.isAttending
+                  ? 'bg-green-500/20 text-green-600 hover:bg-green-500/30'
+                  : 'bg-primary text-primary-foreground hover:bg-primary/90'
+              }`}
+            >
+              {event.isAttending ? 'Attending ✓' : 'RSVP'}
+            </button>
+          </div>
         </div>
       </div>
       
@@ -134,7 +147,7 @@ const EventDetail = () => {
             <div className="bg-card rounded-lg border border-border p-6">
               <h3 className="font-semibold mb-4">Event Details</h3>
               <div className="space-y-3 text-sm">
-                <div><strong>Organizer:</strong> {event.organizer}</div>
+                <div><strong>Organizer:</strong> {event.organizer || event.createdBy || 'Unknown'}</div>
                 <div><strong>Category:</strong> {event.category}</div>
               </div>
             </div>
@@ -147,7 +160,7 @@ const EventDetail = () => {
             <div className="flex-1 p-4 overflow-y-auto space-y-3">
               {announcements.length === 0 ? (
                 <div className="text-center text-muted-foreground py-8">
-                  No announcements yet
+                  {isOrganizer ? "No announcements yet. Post the first one!" : "No announcements from the organizer yet"}
                 </div>
               ) : (
                 announcements.map(announcement => (
@@ -158,6 +171,9 @@ const EventDetail = () => {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium text-sm">{announcement.author}</span>
+                        <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full">
+                          Organizer
+                        </span>
                         <span className="text-xs text-muted-foreground">
                           {announcement.timestamp.toLocaleString()}
                         </span>
@@ -172,7 +188,7 @@ const EventDetail = () => {
             </div>
             
             {/* Chat Input - Only for Organizer */}
-            {isOrganizer && (
+            {isOrganizer ? (
               <div className="border-t border-border p-4">
                 <div className="flex gap-3">
                   <textarea
@@ -196,6 +212,10 @@ const EventDetail = () => {
                     Send
                   </button>
                 </div>
+              </div>
+            ) : (
+              <div className="border-t border-border p-4 text-center text-muted-foreground text-sm">
+                Only the event organizer can post announcements
               </div>
             )}
           </div>

@@ -7,6 +7,7 @@ import { useFriends } from '../hooks/useFriends.js';
 import FriendRequests from '../components/Notifications/FriendRequests.jsx';
 import { 
   User, 
+  Users,
   Mail, 
   MapPin, 
   GraduationCap, 
@@ -33,6 +34,7 @@ const ProfileContent = () => {
   const { sendFriendRequest, getFriendshipStatus, loading, friends } = useFriends();
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('posts');
+  const [showFriendsDropdown, setShowFriendsDropdown] = useState(false);
   const [friendshipStatus, setFriendshipStatus] = useState('none');
   const [statusLoading, setStatusLoading] = useState(false);
   
@@ -64,6 +66,18 @@ const ProfileContent = () => {
   const hasPendingRequest = state.friendRequests?.some(req => 
     req.from === state.currentUser?.username && req.to === profileUser.username
   );
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showFriendsDropdown && !event.target.closest('.friends-dropdown')) {
+        setShowFriendsDropdown(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showFriendsDropdown]);
+  
   // Check friendship status when viewing another user's profile
   useEffect(() => {
     if (!isOwnProfile && profileUser?.username && state.isAuthenticated) {
@@ -252,7 +266,7 @@ const ProfileContent = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       {/* Profile Header */}
       <div className="bg-card rounded-xl border border-border shadow-card p-6">
         <div className="flex items-start gap-6">
@@ -350,10 +364,51 @@ const ProfileContent = () => {
                     </button>
                   </>
                 ) : (
-                  <button onClick={() => setIsEditing(true)} className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors flex items-center gap-2">
-                    <Edit3 className="w-4 h-4" />
-                    Edit Profile
-                  </button>
+                  <div className="flex gap-3 relative">
+                    <button onClick={() => setIsEditing(true)} className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors flex items-center gap-2">
+                      <Edit3 className="w-4 h-4" />
+                      Edit Profile
+                    </button>
+                    <div className="relative friends-dropdown">
+                      <button 
+                        onClick={() => setShowFriendsDropdown(!showFriendsDropdown)}
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2"
+                      >
+                        <Users className="w-4 h-4" />
+                        Friends ({friends.length})
+                      </button>
+                      
+                      {showFriendsDropdown && (
+                        <div className="absolute top-full right-0 mt-2 w-80 bg-card border border-border rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+                          <div className="p-4 border-b border-border">
+                            <h3 className="font-semibold flex items-center gap-2">
+                              <Users className="w-4 h-4" />
+                              Friends ({friends.length})
+                            </h3>
+                          </div>
+                          <div className="p-2">
+                            {friends.length === 0 ? (
+                              <p className="text-muted-foreground text-center py-4">No friends yet</p>
+                            ) : (
+                              friends.map((friend) => (
+                                <div key={friend.id} className="flex items-center gap-3 p-3 hover:bg-secondary/50 rounded-lg">
+                                  <img
+                                    src={friend.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.username}`}
+                                    alt={friend.display_name || friend.username}
+                                    className="w-10 h-10 rounded-full"
+                                  />
+                                  <div className="flex-1">
+                                    <p className="font-medium text-sm">{friend.display_name || friend.username}</p>
+                                    <p className="text-xs text-muted-foreground">@{friend.username}</p>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
                 </div>
               )}
@@ -626,33 +681,9 @@ const ProfileContent = () => {
                 (post.author === profileUser.username || post.username === profileUser.username) && !post.isAnonymous
               ).length})
             </button>
-            {isOwnProfile && (
-              <>
-                <button
-                  onClick={() => setActiveTab('requests')}
-                  className={`px-6 py-3 font-medium transition-colors ${
-                    activeTab === 'requests'
-                      ? 'text-primary border-b-2 border-primary bg-primary/5'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Friend Requests
-                </button>
-                <button
-                  onClick={() => setActiveTab('friends')}
-                  className={`px-6 py-3 font-medium transition-colors ${
-                    activeTab === 'friends'
-                      ? 'text-primary border-b-2 border-primary bg-primary/5'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Friends ({friends.length})
-                </button>
-              </>
-            )}
           </div>
           
-          <div className="p-8">
+          <div className="p-6">
             {activeTab === 'posts' && (
               <div>
                 <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
@@ -664,8 +695,8 @@ const ProfileContent = () => {
                   {(state.posts || [])
                     .filter(post => (post.author === profileUser.username || post.username === profileUser.username) && !post.isAnonymous)
                     .map(post => (
-                <div key={post.id} className="bg-secondary/30 rounded-lg p-6 border border-border/50">
-                  <div className="flex items-start gap-3">
+                <div key={post.id} className="w-full bg-secondary/30 rounded-lg p-6 border border-border/50">
+                  <div className="flex items-start gap-3 w-full">
                     <img
                       src={profileUser.avatar || profileUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileUser.username}`}
                       alt={profileUser.displayName || profileUser.display_name}
@@ -702,15 +733,6 @@ const ProfileContent = () => {
               </div>
             )}
 
-            {activeTab === 'requests' && isOwnProfile && (
-              <div>
-                <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
-                  <UserPlus className="w-5 h-5" />
-                  Friend Requests
-                </h2>
-                <FriendRequests showHeader={false} />
-              </div>
-            )}
             {activeTab === 'friends' && isOwnProfile && (
               <div>
                 <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
@@ -758,7 +780,6 @@ const ProfileContent = () => {
                 )}
               </div>
             )}
-            
           </div>
         </div>
       </div>
