@@ -217,6 +217,7 @@ const TopNav = () => {
               <div className="absolute right-0 top-12 w-48 bg-card border border-border rounded-xl shadow-elevated p-2 animate-slide-in-right">
                 <button 
                   onClick={() => {
+                    actions.setViewingProfile(null); // Clear viewing profile to show own profile
                     actions.setCurrentPage('profile');
                     setShowProfileMenu(false);
                   }}
