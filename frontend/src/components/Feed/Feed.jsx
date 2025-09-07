@@ -4,7 +4,6 @@ import { useApp } from '../../context/AppContext.jsx';
 import { usePosts } from '../../hooks/usePosts';
 import CreatePost from '../Post/CreatePost.jsx';
 import PostCard from '../Post/PostCard.jsx';
-import FriendRequests from '../Notifications/FriendRequests.jsx';
 import { Filter, TrendingUp, Clock, Flame } from 'lucide-react';
 
 const Feed = () => {
@@ -135,8 +134,6 @@ const Feed = () => {
         </div>
       </div>
       
-      <FriendRequests />
-
       {/* Community Filter Banner */}
       {state.selectedCommunity && (
         <div className="bg-primary/10 border border-primary/20 rounded-xl p-4">
