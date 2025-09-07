@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
 import { useSearch } from '../../hooks/useSearch.js';
+import { useNotifications } from '../../hooks/useNotifications.js';
 import { 
   Menu, 
   Search, 
@@ -11,12 +12,16 @@ import {
   Moon, 
   Settings,
   User,
-  LogOut
+  LogOut,
+  UserPlus,
+  Check,
+  X
 } from 'lucide-react';
 
 const TopNav = () => {
   const { state, actions } = useApp();
   const { results, loading, searchUsers, setResults } = useSearch();
+  const { notifications, unreadCount, markAsRead, markChatAsRead } = useNotifications();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -148,28 +153,113 @@ const TopNav = () => {
               className="p-2 rounded-lg hover:bg-secondary/50 transition-colors relative"
             >
               <Bell className="w-5 h-5" />
-              {state.notifications.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-hub-danger rounded-full animate-pulse-glow" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-hub-danger text-white text-xs rounded-full flex items-center justify-center animate-pulse-glow">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
               )}
             </button>
             
             {/* Notifications Dropdown */}
             {showNotifications && (
-              <div className="absolute right-0 top-12 w-80 bg-card border border-border rounded-xl shadow-elevated p-4 animate-slide-in-right">
-                <h3 className="font-semibold mb-3">Notifications</h3>
-                {state.notifications.length > 0 ? (
-                  <div className="space-y-3">
-                    {state.notifications.map(notification => (
-                      <div key={notification.id} className="p-3 bg-secondary/30 rounded-lg">
-                        <p className="text-sm">{notification.message}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {notification.timestamp.toLocaleTimeString()}
-                        </p>
+              <div className="absolute right-0 top-12 w-96 bg-card border border-border rounded-xl shadow-elevated max-h-96 overflow-y-auto animate-slide-in-right">
+                <div className="p-4 border-b border-border">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold">Notifications</h3>
+                    {unreadCount > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {unreadCount} unread
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                {notifications.length > 0 ? (
+                  <div className="divide-y divide-border">
+                    {notifications.map(notification => (
+                      <div key={notification.id} className="p-4 hover:bg-secondary/30 transition-colors">
+                        <div className="flex items-start gap-3">
+                          {/* Avatar or Icon */}
+                          <div className="flex-shrink-0">
+                            {notification.avatar ? (
+                              <img
+                                src={notification.avatar}
+                                alt=""
+                                className="w-10 h-10 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                                {notification.type === 'friend_request' ? (
+                                  <UserPlus className="w-5 h-5 text-primary" />
+                                ) : (
+                                  <MessageCircle className="w-5 h-5 text-primary" />
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground">
+                              {notification.title}
+                            </p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {notification.message}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-2">
+                              {notification.timestamp.toLocaleString()}
+                            </p>
+                          </div>
+                          
+                          {/* Actions */}
+                          <div className="flex-shrink-0">
+                            {notification.type === 'friend_request' ? (
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => markAsRead(notification.id)}
+                                  className="p-1 rounded bg-green-500 hover:bg-green-600 text-white transition-colors"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => markAsRead(notification.id)}
+                                  className="p-1 rounded bg-red-500 hover:bg-red-600 text-white transition-colors"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ) : notification.type === 'chat' ? (
+                              <button
+                                onClick={() => {
+                                  markChatAsRead(notification.data.sender.id);
+                                  // Set the selected chat friend and navigate to chat
+                                  actions.setSelectedChatFriend(notification.data.sender);
+                                  actions.setCurrentPage('chat');
+                                  setShowNotifications(false);
+                                }}
+                                className="text-xs text-primary hover:underline"
+                              >
+                                View
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => markAsRead(notification.id)}
+                                className="text-xs text-muted-foreground hover:text-foreground"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No notifications</p>
+                  <div className="p-8 text-center text-muted-foreground">
+                    <Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No notifications</p>
+                    <p className="text-sm">You're all caught up!</p>
+                  </div>
                 )}
               </div>
             )}

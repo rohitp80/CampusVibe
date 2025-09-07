@@ -80,6 +80,7 @@ const initialState = {
   chatRooms,
   studyNotes,
   activeChat: null,
+  selectedChatFriend: null, // Add selected chat friend
   
   // Connections
   connections,
@@ -130,6 +131,9 @@ const appReducer = (state, action) => {
       localStorage.setItem('currentPage', action.payload);
       console.log('Saved to localStorage:', localStorage.getItem('currentPage'));
       return { ...state, currentPage: action.payload };
+      
+    case 'SET_SELECTED_CHAT_FRIEND':
+      return { ...state, selectedChatFriend: action.payload };
       
     case 'TOGGLE_SIDEBAR':
       return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
@@ -710,6 +714,7 @@ export const AppProvider = ({ children }) => {
     },
     setTheme: (theme) => dispatch({ type: 'SET_THEME', payload: theme }),
     setCurrentPage: (page) => dispatch({ type: 'SET_CURRENT_PAGE', payload: page }),
+    setSelectedChatFriend: (friend) => dispatch({ type: 'SET_SELECTED_CHAT_FRIEND', payload: friend }),
     toggleSidebar: () => dispatch({ type: 'TOGGLE_SIDEBAR' }),
     addPost: (post) => dispatch({ type: 'ADD_POST', payload: post }),
     deletePost: (postId) => dispatch({ type: 'DELETE_POST', payload: postId }),
