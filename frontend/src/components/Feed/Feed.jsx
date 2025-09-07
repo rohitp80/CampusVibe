@@ -134,7 +134,6 @@ const Feed = () => {
         </div>
       </div>
       
-
       {/* Community Filter Banner */}
       {state.selectedCommunity && (
         <div className="bg-primary/10 border border-primary/20 rounded-xl p-4">

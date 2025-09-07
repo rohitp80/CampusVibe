@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useFriends } from '../hooks/useFriends.js';
 import { supabase } from '../lib/supabase';
-import { MessageCircle, Send, Users } from 'lucide-react';
+import { MessageCircle, Send, Users, User } from 'lucide-react';
 
 const Chat = () => {
   const { friends, loading } = useFriends();
-  
-  // Use only real friends
   const displayFriends = friends;
   
   const [selectedFriend, setSelectedFriend] = useState(null);
@@ -14,303 +12,354 @@ const Chat = () => {
   const [newMessage, setNewMessage] = useState('');
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const messagesEndRef = useRef(null);
+  const subscriptionRef = useRef(null);
 
-  // Get current user ID on mount
+  // Get current user on mount
   useEffect(() => {
     const getCurrentUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.id) {
+      if (session?.user) {
         setCurrentUserId(session.user.id);
       }
     };
     getCurrentUser();
   }, []);
 
-  // Load messages and poll for updates
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Load messages and set up real-time subscription
   useEffect(() => {
     if (!selectedFriend || !currentUserId) return;
 
-    loadMessages(selectedFriend.id);
+    loadMessages();
+    setupRealtimeSubscription();
 
-    // Poll for new messages every 1 second
-    const interval = setInterval(() => {
-      loadMessages(selectedFriend.id);
-    }, 1000);
-
-    return () => clearInterval(interval);
+    return () => {
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+      }
+    };
   }, [selectedFriend, currentUserId]);
 
-  const loadMessages = async (friendId) => {
+  const loadMessages = async () => {
     try {
       setLoadingMessages(true);
       
-      // Get all messages from localStorage
-      const saved = localStorage.getItem('allChatMessages');
-      const allMessages = saved ? JSON.parse(saved) : [];
-      
-      // Filter messages for this conversation
-      const conversationMessages = allMessages.filter(msg => 
-        (msg.sender_id === currentUserId && msg.receiver_id === friendId) ||
-        (msg.sender_id === friendId && msg.receiver_id === currentUserId)
-      );
-      
-      // Sort by timestamp
-      conversationMessages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-      
-      setMessages(conversationMessages);
+      // Load messages between current user and selected friend
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select(`
+          id,
+          content,
+          created_at,
+          sender_id,
+          receiver_id,
+          is_read,
+          sender:sender_id (
+            id,
+            username,
+            display_name,
+            avatar_url
+          ),
+          receiver:receiver_id (
+            id,
+            username,
+            display_name,
+            avatar_url
+          )
+        `)
+        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedFriend.id}),and(sender_id.eq.${selectedFriend.id},receiver_id.eq.${currentUserId})`)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Error loading messages:', error);
+        return;
+      }
+
+      setMessages(data || []);
     } catch (error) {
-      console.error('Load messages error:', error);
-      setMessages([]);
+      console.error('Error loading messages:', error);
     } finally {
       setLoadingMessages(false);
     }
   };
 
-  const loadDemoMessages = (friendId) => {
-    try {
-      const saved = localStorage.getItem('chatMessages');
-      const allMessages = saved ? JSON.parse(saved) : {};
-      setMessages(allMessages[friendId] || []);
-    } catch (error) {
-      console.error('Error loading demo messages:', error);
-      setMessages([]);
-    }
+  const setupRealtimeSubscription = () => {
+    subscriptionRef.current = supabase
+      .channel(`chat:${currentUserId}_${selectedFriend.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages'
+        },
+        async (payload) => {
+          // Only show messages for this conversation
+          if ((payload.new.sender_id === selectedFriend.id && payload.new.receiver_id === currentUserId) ||
+              (payload.new.sender_id === currentUserId && payload.new.receiver_id === selectedFriend.id)) {
+            
+            // Fetch complete message with profile data
+            const { data } = await supabase
+              .from('chat_messages')
+              .select(`
+                id,
+                content,
+                created_at,
+                sender_id,
+                receiver_id,
+                is_read,
+                sender:sender_id (
+                  id,
+                  username,
+                  display_name,
+                  avatar_url
+                ),
+                receiver:receiver_id (
+                  id,
+                  username,
+                  display_name,
+                  avatar_url
+                )
+              `)
+              .eq('id', payload.new.id)
+              .single();
+
+            if (data && payload.new.sender_id !== currentUserId) {
+              // Only add if it's from the other person (we handle our own optimistically)
+              setMessages(prev => [...prev, data]);
+            }
+          }
+        }
+      )
+      .subscribe();
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedFriend) return;
-    
-    const message = {
-      id: Date.now(),
-      message: newMessage.trim(),
+    if (!newMessage.trim() || !selectedFriend || !currentUserId) return;
+
+    const messageContent = newMessage.trim();
+    setNewMessage(''); // Clear input immediately
+
+    // Add message to UI immediately (optimistic update)
+    const tempMessage = {
+      id: `temp_${Date.now()}`, // Temporary ID
+      content: messageContent,
+      created_at: new Date().toISOString(),
       sender_id: currentUserId,
       receiver_id: selectedFriend.id,
-      created_at: new Date().toISOString()
+      is_read: false,
+      sender: {
+        id: currentUserId,
+        username: 'You',
+        display_name: 'You',
+        avatar_url: null
+      }
     };
     
-    // Get all messages from localStorage
-    const saved = localStorage.getItem('allChatMessages');
-    const allMessages = saved ? JSON.parse(saved) : [];
-    
-    // Add new message
-    allMessages.push(message);
-    localStorage.setItem('allChatMessages', JSON.stringify(allMessages));
-    
-    // Update current conversation
-    loadMessages(selectedFriend.id);
-    setNewMessage('');
-  };
+    setMessages(prev => [...prev, tempMessage]);
 
-  const sendRealMessage = async () => {
     try {
-      console.log('Sending real message to:', selectedFriend.id);
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        console.error('No session found');
+      // Send to database
+      const { error } = await supabase
+        .from('chat_messages')
+        .insert({
+          content: messageContent,
+          sender_id: currentUserId,
+          receiver_id: selectedFriend.id,
+          message_type: 'text'
+        });
+
+      if (error) {
+        console.error('Error sending message:', error);
+        // Remove the optimistic message on error
+        setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
         return;
       }
-
-      console.log('Session found, sending message...');
-      const response = await fetch('http://localhost:3000/api/chat/direct', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          receiverId: selectedFriend.id,
-          message: newMessage
-        })
-      });
-
-      console.log('Response status:', response.status);
-      const result = await response.json();
-      console.log('Response data:', result);
-
-      if (response.ok) {
-        setNewMessage('');
-        // Reload messages to get the new one
-        await loadMessages(selectedFriend.id);
-      } else {
-        console.error('Failed to send message:', result);
-      }
     } catch (error) {
-      console.error('Send message error:', error);
+      console.error('Error sending message:', error);
+      // Remove the optimistic message on error
+      setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
     }
   };
 
-  const sendDemoMessage = () => {
-    const friendId = selectedFriend.id;
-    const message = {
-      id: Date.now(),
-      message: newMessage,
-      sender_id: 'current_user',
-      created_at: new Date().toISOString()
-    };
-    
-    const saved = localStorage.getItem('chatMessages');
-    const allMessages = saved ? JSON.parse(saved) : {};
-    const friendMessages = allMessages[friendId] || [];
-    
-    allMessages[friendId] = [...friendMessages, message];
-    localStorage.setItem('chatMessages', JSON.stringify(allMessages));
-    
-    setMessages([...friendMessages, message]);
-    setNewMessage('');
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading friends...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="w-full h-[calc(100vh-12rem)] max-w-none">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-        {/* Friends List */}
-        <div className="lg:col-span-1 h-full">
-          <div className="h-full bg-card border border-border rounded-xl overflow-hidden">
+    <div className="max-w-6xl mx-auto p-6">
+      <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
+        <div className="flex h-[600px]">
+          {/* Friends List */}
+          <div className="w-1/3 border-r border-border bg-secondary/20">
             <div className="p-4 border-b border-border">
               <h2 className="text-lg font-semibold flex items-center gap-2">
-                <MessageCircle className="w-5 h-5" />
-                Chats ({displayFriends.length})
+                <Users className="w-5 h-5" />
+                Friends ({displayFriends?.length || 0})
               </h2>
             </div>
+            
             <div className="overflow-y-auto h-full">
-              {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                </div>
-              ) : displayFriends.length === 0 ? (
-                <div className="text-center py-8">
-                  <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">No friends to chat with</p>
-                  <p className="text-sm text-muted-foreground mt-2">Add friends to start chatting!</p>
-                </div>
-              ) : (
+              {displayFriends?.length > 0 ? (
                 displayFriends.map((friend) => (
                   <div
                     key={friend.id}
                     onClick={() => setSelectedFriend(friend)}
-                    className={`p-4 border-b border-border/50 cursor-pointer hover:bg-secondary/30 transition-colors ${
-                      selectedFriend?.id === friend.id ? 'bg-primary/10' : ''
+                    className={`p-4 cursor-pointer hover:bg-secondary/50 transition-colors border-b border-border/50 ${
+                      selectedFriend?.id === friend.id ? 'bg-primary/10 border-l-4 border-l-primary' : ''
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <img
-                        src={friend.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.username}`}
-                        alt={friend.display_name || friend.username}
-                        className="w-10 h-10 rounded-full object-cover"
-                        onError={(e) => {
-                          e.target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.username}`;
-                        }}
-                      />
+                      {friend.avatar_url ? (
+                        <img
+                          src={friend.avatar_url}
+                          alt={friend.display_name}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                          <User className="w-5 h-5 text-primary" />
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-foreground text-sm truncate">
-                          {friend.display_name || friend.username}
-                        </h3>
-                        <p className="text-xs text-muted-foreground truncate">@{friend.username}</p>
+                        <p className="font-medium text-foreground truncate">
+                          {friend.display_name}
+                        </p>
+                        <p className="text-sm text-muted-foreground truncate">
+                          @{friend.username}
+                        </p>
                       </div>
                     </div>
                   </div>
                 ))
+              ) : (
+                <div className="p-8 text-center text-muted-foreground">
+                  <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No friends yet</p>
+                  <p className="text-sm">Add friends to start chatting!</p>
+                </div>
               )}
             </div>
           </div>
-        </div>
-        
-        {/* Chat Window */}
-        <div className="lg:col-span-2 h-full">
-          <div className="h-full bg-card border border-border rounded-xl flex flex-col">
+
+          {/* Chat Area */}
+          <div className="flex-1 flex flex-col">
             {selectedFriend ? (
               <>
                 {/* Chat Header */}
-                <div className="p-4 border-b border-border">
+                <div className="p-4 border-b border-border bg-secondary/10">
                   <div className="flex items-center gap-3">
-                    <img
-                      src={selectedFriend.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedFriend.username}`}
-                      alt={selectedFriend.display_name || selectedFriend.username}
-                      className="w-10 h-10 rounded-full object-cover"
-                    />
-                    <div className="flex-1">
-                      <h3 className="font-medium text-foreground">
-                        {selectedFriend.display_name || selectedFriend.username}
+                    {selectedFriend.avatar_url ? (
+                      <img
+                        src={selectedFriend.avatar_url}
+                        alt={selectedFriend.display_name}
+                        className="w-10 h-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                        <User className="w-5 h-5 text-primary" />
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="font-semibold text-foreground">
+                        {selectedFriend.display_name}
                       </h3>
-                      <p className="text-xs text-muted-foreground">@{selectedFriend.username}</p>
+                      <p className="text-sm text-muted-foreground">
+                        @{selectedFriend.username}
+                      </p>
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
                   {loadingMessages ? (
-                    <div className="flex items-center justify-center py-8">
+                    <div className="flex items-center justify-center h-32">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
                     </div>
-                  ) : (
-                    messages.map((message) => {
-                      const isCurrentUser = message.sender_id === currentUserId;
-                      
-                      return (
+                  ) : messages.length > 0 ? (
+                    messages.map((message) => (
+                      <div
+                        key={message.id}
+                        className={`flex ${
+                          message.sender_id === currentUserId ? 'justify-end' : 'justify-start'
+                        }`}
+                      >
                         <div
-                          key={message.id}
-                          className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
+                          className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                            message.sender_id === currentUserId
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-secondary text-secondary-foreground'
+                          }`}
                         >
-                          <div
-                            className={`max-w-xs px-3 py-2 rounded-lg ${
-                              isCurrentUser
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-secondary text-secondary-foreground'
-                            }`}
-                          >
-                            <p className="text-sm">{message.message}</p>
-                            <p className="text-xs opacity-70 mt-1">
-                              {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                          </div>
+                          <p className="text-sm">{message.content}</p>
+                          <p className="text-xs opacity-70 mt-1">
+                            {new Date(message.created_at).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
                         </div>
-                      );
-                    })
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex items-center justify-center h-32 text-muted-foreground">
+                      <div className="text-center">
+                        <MessageCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                        <p>No messages yet</p>
+                        <p className="text-sm">Start the conversation!</p>
+                      </div>
+                    </div>
                   )}
+                  <div ref={messagesEndRef} />
                 </div>
-                
+
                 {/* Message Input */}
                 <div className="p-4 border-t border-border">
-                  <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="flex items-end gap-3">
-                    <div className="flex-1">
-                      <textarea
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        placeholder="Type your message..."
-                        className="w-full p-3 bg-secondary/30 border border-border/50 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground placeholder:text-muted-foreground"
-                        rows={2}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            sendMessage();
-                          }
-                        }}
-                      />
-                    </div>
-                    
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder={`Message ${selectedFriend.display_name}...`}
+                      className="flex-1 px-4 py-2 bg-secondary/30 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder-muted-foreground"
+                    />
                     <button
-                      type="submit"
+                      onClick={sendMessage}
                       disabled={!newMessage.trim()}
-                      className={`
-                        p-3 rounded-lg transition-all duration-200 flex-shrink-0
-                        ${newMessage.trim()
-                          ? 'bg-primary text-primary-foreground hover:opacity-90' 
-                          : 'bg-secondary/50 text-muted-foreground cursor-not-allowed'
-                        }
-                      `}
+                      className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                     >
-                      <Send className="w-5 h-5" />
+                      <Send className="w-4 h-4" />
                     </button>
-                  </form>
+                  </div>
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center">
+              <div className="flex-1 flex items-center justify-center text-muted-foreground">
                 <div className="text-center">
-                  <MessageCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-foreground mb-2">Select a friend to chat</h3>
-                  <p className="text-muted-foreground">Choose a friend from the list to start messaging</p>
+                  <MessageCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <h3 className="text-lg font-medium mb-2">Select a friend to start chatting</h3>
+                  <p className="text-sm">Choose a friend from the list to begin your conversation</p>
                 </div>
               </div>
             )}
