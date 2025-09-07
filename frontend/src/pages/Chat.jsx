@@ -392,17 +392,6 @@ const Chat = ({ preSelectedFriend = null }) => {
               <MessageCircle className="w-4 h-4 inline mr-2" />
               Chats
             </button>
-            <button
-              onClick={() => setActiveTab('requests')}
-              className={`px-6 py-3 font-medium transition-colors ${
-                activeTab === 'requests'
-                  ? 'text-primary border-b-2 border-primary bg-primary/5'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <UserPlus className="w-4 h-4 inline mr-2" />
-              Friend Requests
-            </button>
           </div>
         </div>
 
@@ -684,12 +673,6 @@ const Chat = ({ preSelectedFriend = null }) => {
             )}
           </div>
         </div>
-        )}
-
-        {activeTab === 'requests' && (
-          <div className="p-6">
-            <FriendRequests showHeader={false} />
-          </div>
         )}
       </div>
     </div>

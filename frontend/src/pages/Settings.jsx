@@ -79,14 +79,6 @@ const Settings = () => {
           <div className="space-y-4">
             <button className="w-full flex items-center justify-between p-3 bg-secondary/20 rounded-lg hover:bg-secondary/30 transition-colors">
               <div className="flex items-center gap-3">
-                <Mail className="w-4 h-4" />
-                <span>Change Email</span>
-              </div>
-              <span className="text-sm text-muted-foreground">{state.currentUser?.email}</span>
-            </button>
-            
-            <button className="w-full flex items-center justify-between p-3 bg-secondary/20 rounded-lg hover:bg-secondary/30 transition-colors">
-              <div className="flex items-center gap-3">
                 <Lock className="w-4 h-4" />
                 <span>Change Password</span>
               </div>
