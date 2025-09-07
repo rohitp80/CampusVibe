@@ -100,7 +100,8 @@ const Chat = () => {
                          type === 'video' ? `🎥 Video: ${file.name}` :
                          `📄 ${file.name}`;
 
-      await sendFileMessage(fileMessage, type, publicUrl, file.name);
+      const messageType = type === 'document' ? 'file' : type; // Use 'file' instead of 'document'
+      await sendFileMessage(fileMessage, messageType, publicUrl, file.name);
       
     } catch (error) {
       console.error('Error handling file upload:', error);
@@ -494,7 +495,7 @@ const Chat = () => {
                                 </div>
                               )}
                             </div>
-                          ) : message.message_type === 'document' ? (
+                          ) : message.message_type === 'file' ? (
                             <div>
                               <div className="flex items-center gap-2 mb-2">
                                 <FileText className="w-4 h-4" />
