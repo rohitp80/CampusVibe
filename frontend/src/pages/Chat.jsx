@@ -28,7 +28,10 @@ const Chat = () => {
 
   // Only auto-scroll when sending a new message
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const messagesContainer = document.querySelector('.messages-container');
+    if (messagesContainer) {
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
   };
 
   // Load messages and set up real-time subscription
@@ -297,7 +300,7 @@ const Chat = () => {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 messages-container">
                   {loadingMessages ? (
                     <div className="flex items-center justify-center h-32">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
