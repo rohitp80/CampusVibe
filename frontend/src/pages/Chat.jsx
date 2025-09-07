@@ -130,38 +130,25 @@ const Chat = () => {
       .subscribe();
   };
 
+  const getConversationId = () => {
+    if (!selectedFriend || !currentUserId) return null;
+    // Create consistent conversation ID by sorting user IDs
+    const ids = [currentUserId, selectedFriend.id].sort();
+    return `${ids[0]}_${ids[1]}`;
+  };
+
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedFriend || !currentUserId) return;
 
     try {
       const conversationId = getConversationId();
       
-      // First, ensure conversation exists
-      const { data: existingConv } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('id', conversationId)
-        .single();
-
-      if (!existingConv) {
-        // Create conversation
-        await supabase
-          .from('conversations')
-          .insert({
-            id: conversationId,
-            type: 'direct',
-            participants: [currentUserId, selectedFriend.id],
-            created_by: currentUserId
-          });
-      }
-      
       const { error } = await supabase
         .from('messages')
         .insert({
           content: newMessage.trim(),
           user_id: currentUserId,
-          conversation_id: conversationId,
-          created_at: new Date().toISOString()
+          conversation_id: conversationId
         });
 
       if (error) {
