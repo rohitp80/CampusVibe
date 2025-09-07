@@ -130,13 +130,6 @@ const Chat = () => {
       .subscribe();
   };
 
-  const getConversationId = () => {
-    if (!selectedFriend || !currentUserId) return null;
-    // Create consistent conversation ID by sorting user IDs
-    const ids = [currentUserId, selectedFriend.id].sort();
-    return `${ids[0]}_${ids[1]}`;
-  };
-
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedFriend || !currentUserId) return;
 
