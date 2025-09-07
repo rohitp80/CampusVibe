@@ -21,12 +21,24 @@ const Wellness = () => {
   const [selectedMood, setSelectedMood] = useState(null);
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [newGoalText, setNewGoalText] = useState('');
-  const [todayGoals, setTodayGoals] = useState([
-    { id: 1, task: "Meditate for 10 minutes", completed: false },
-    { id: 2, task: "Take a 20-minute walk", completed: true },
-    { id: 3, task: "Practice gratitude journaling", completed: false },
-    { id: 4, task: "Limit social media to 1 hour", completed: true }
-  ]);
+  const [todayGoals, setTodayGoals] = useState(() => {
+    try {
+      const saved = localStorage.getItem('wellnessGoals');
+      return saved ? JSON.parse(saved) : [
+        { id: 1, task: "Meditate for 10 minutes", completed: false },
+        { id: 2, task: "Take a 20-minute walk", completed: true },
+        { id: 3, task: "Practice gratitude journaling", completed: false },
+        { id: 4, task: "Limit social media to 1 hour", completed: true }
+      ];
+    } catch {
+      return [
+        { id: 1, task: "Meditate for 10 minutes", completed: false },
+        { id: 2, task: "Take a 20-minute walk", completed: true },
+        { id: 3, task: "Practice gratitude journaling", completed: false },
+        { id: 4, task: "Limit social media to 1 hour", completed: true }
+      ];
+    }
+  });
   
   const moods = [
     { emoji: "😊", label: "Happy", value: "happy" },
@@ -65,11 +77,11 @@ const Wellness = () => {
   ];
   
   const toggleGoal = (goalId) => {
-    setTodayGoals(goals => 
-      goals.map(goal => 
-        goal.id === goalId ? { ...goal, completed: !goal.completed } : goal
-      )
+    const updatedGoals = todayGoals.map(goal => 
+      goal.id === goalId ? { ...goal, completed: !goal.completed } : goal
     );
+    setTodayGoals(updatedGoals);
+    localStorage.setItem('wellnessGoals', JSON.stringify(updatedGoals));
   };
 
   const addNewGoal = () => {
@@ -79,7 +91,9 @@ const Wellness = () => {
         task: newGoalText.trim(),
         completed: false
       };
-      setTodayGoals(goals => [...goals, newGoal]);
+      const updatedGoals = [...todayGoals, newGoal];
+      setTodayGoals(updatedGoals);
+      localStorage.setItem('wellnessGoals', JSON.stringify(updatedGoals));
       setNewGoalText('');
       setShowAddGoal(false);
     }
@@ -274,47 +288,6 @@ const Wellness = () => {
         
         {/* Right Column */}
         <div className="space-y-6">
-          {/* Quick Stats */}
-          <div className="bg-card rounded-xl border border-border shadow-card p-6">
-            <h3 className="font-semibold text-foreground mb-4">Weekly Overview</h3>
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sun className="w-4 h-4 text-hub-warning" />
-                  <span className="text-sm text-muted-foreground">Average Mood</span>
-                </div>
-                <span className="text-sm font-medium text-hub-success">Positive</span>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Moon className="w-4 h-4 text-hub-secondary" />
-                  <span className="text-sm text-muted-foreground">Sleep Average</span>
-                </div>
-                <span className="text-sm font-medium text-foreground">7.2h</span>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Target className="w-4 h-4 text-hub-accent" />
-                  <span className="text-sm text-muted-foreground">Goals Met</span>
-                </div>
-                <span className="text-sm font-medium text-foreground">
-                  {wellnessStats.weeklyGoals}/{wellnessStats.totalGoals}
-                </span>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Award className="w-4 h-4 text-hub-primary" />
-                  <span className="text-sm text-muted-foreground">Current Streak</span>
-                </div>
-                <span className="text-sm font-medium text-hub-primary">{wellnessStats.streak} days</span>
-              </div>
-            </div>
-          </div>
-          
           {/* Upcoming Events */}
           <div className="bg-card rounded-xl border border-border shadow-card p-6">
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">

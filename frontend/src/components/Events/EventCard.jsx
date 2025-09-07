@@ -112,24 +112,6 @@ const EventCard = ({ event }) => {
           </div>
         </div>
         
-        {/* Attendance Progress - Only show for events not created by current user */}
-        {event.organizer !== "You" && (
-          <div className="mb-6">
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-muted-foreground">Attendance</span>
-              <span className="text-foreground font-medium">
-                {getAttendancePercentage()}%
-              </span>
-            </div>
-            <div className="w-full bg-secondary/50 rounded-full h-2 overflow-hidden">
-              <div 
-                className="h-full bg-gradient-primary rounded-full transition-all duration-500"
-                style={{ width: `${getAttendancePercentage()}%` }}
-              />
-            </div>
-          </div>
-        )}
-        
         {/* Action Button */}
         <button
           onClick={() => actions.toggleEventAttendance(event.id)}

@@ -15,6 +15,28 @@ const loadStoredPosts = () => {
   }
 };
 
+// Load events from localStorage
+const loadStoredEvents = () => {
+  try {
+    const stored = localStorage.getItem('campusVibe_events');
+    if (stored) {
+      const events = JSON.parse(stored);
+      // Fix date objects that become strings after JSON parsing
+      return events.map(event => ({
+        ...event,
+        date: new Date(event.date)
+      }));
+    } else {
+      // First time - save initial events and return them
+      localStorage.setItem('campusVibe_events', JSON.stringify(initialEvents));
+      return initialEvents;
+    }
+  } catch (error) {
+    console.error('Error loading events:', error);
+    return initialEvents;
+  }
+};
+
 // Load initial values from localStorage
 const getInitialCurrentPage = () => {
   const saved = localStorage.getItem('currentPage') || 'feed';
@@ -50,7 +72,7 @@ const initialState = {
   selectedCommunity: JSON.parse(localStorage.getItem('selectedCommunity') || 'null'),
   
   // Events
-  events: initialEvents,
+  events: loadStoredEvents(),
   eventFilter: 'all',
   
   // Communities
@@ -266,7 +288,10 @@ const appReducer = (state, action) => {
         attendees: 1,
         isAttending: true
       };
-      return { ...state, events: [newEvent, ...state.events] };
+      const newEventsList = [newEvent, ...state.events];
+      // Save to localStorage
+      localStorage.setItem('campusVibe_events', JSON.stringify(newEventsList));
+      return { ...state, events: newEventsList };
       
     case 'UPDATE_COMMUNITY_MEMBER_COUNT':
       return {
@@ -302,19 +327,19 @@ const appReducer = (state, action) => {
       return { ...state, eventFilter: action.payload };
       
     case 'TOGGLE_EVENT_ATTENDANCE':
-      return {
-        ...state,
-        events: state.events.map(event => {
-          if (event.id === action.payload) {
-            return {
-              ...event,
-              isAttending: !event.isAttending,
-              attendees: event.isAttending ? event.attendees - 1 : event.attendees + 1
-            };
-          }
-          return event;
-        })
-      };
+      const updatedEvents = state.events.map(event => {
+        if (event.id === action.payload) {
+          return {
+            ...event,
+            isAttending: !event.isAttending,
+            attendees: event.isAttending ? event.attendees - 1 : event.attendees + 1
+          };
+        }
+        return event;
+      });
+      // Save to localStorage
+      localStorage.setItem('campusVibe_events', JSON.stringify(updatedEvents));
+      return { ...state, events: updatedEvents };
       
     case 'SET_ACTIVE_CHAT':
       return { ...state, activeChat: action.payload };
