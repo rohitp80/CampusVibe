@@ -71,8 +71,15 @@ const initialState = {
   sessionLoading: true, // Add session loading state
   notifications: [],
   viewingProfile: null,
-  friendRequests: JSON.parse(localStorage.getItem('campusVibe_globalFriendRequests') || '[]'),
-  friends: JSON.parse(localStorage.getItem('campusVibe_globalFriends') || '[]') // Add viewing profile state
+  // Load initial friend requests from localStorage
+  friendRequests: (() => {
+    try {
+      return JSON.parse(localStorage.getItem('friendRequests') || '[]');
+    } catch (e) {
+      return [];
+    }
+  })(),
+  friends: [] // Add viewing profile state
 };
 
 const appReducer = (state, action) => {
@@ -357,52 +364,90 @@ const appReducer = (state, action) => {
       };
 
     case 'SEND_FRIEND_REQUEST':
-      const newRequest = {
+      // Simple approach - just add to global storage immediately
+      const request = {
         id: Date.now(),
         from: state.currentUser.username,
         to: action.payload.username,
         status: 'pending'
       };
-      const updatedRequests = [...state.friendRequests, newRequest];
-      // Store globally so all users can see requests
-      localStorage.setItem('campusVibe_globalFriendRequests', JSON.stringify(updatedRequests));
-      console.log('Friend request sent:', newRequest);
-      console.log('All requests:', updatedRequests);
+      
+      // Get existing requests and add new one
+      const currentRequests = JSON.parse(localStorage.getItem('friendRequests') || '[]');
+      const updatedRequests = [...currentRequests, request];
+      localStorage.setItem('friendRequests', JSON.stringify(updatedRequests));
+      
+      console.log('SENT REQUEST:', request);
+      console.log('ALL REQUESTS NOW:', updatedRequests);
+      
+      // Force immediate state update
       return {
         ...state,
         friendRequests: updatedRequests
       };
 
     case 'ACCEPT_FRIEND_REQUEST':
-      const request = state.friendRequests.find(req => req.id === action.payload);
-      const remainingRequests = state.friendRequests.filter(req => req.id !== action.payload);
-      const updatedFriends = [...state.friends, { username: request.from }];
-      // Update global storage
-      localStorage.setItem('campusVibe_globalFriendRequests', JSON.stringify(remainingRequests));
-      localStorage.setItem('campusVibe_globalFriends', JSON.stringify(updatedFriends));
+      const acceptRequests = JSON.parse(localStorage.getItem('friendRequests') || '[]');
+      const acceptedRequest = acceptRequests.find(req => req.id === action.payload);
+      const remainingRequests = acceptRequests.filter(req => req.id !== action.payload);
+      
+      localStorage.setItem('friendRequests', JSON.stringify(remainingRequests));
+      
+      console.log('Friend request accepted:', acceptedRequest);
+      console.log('Remaining requests:', remainingRequests);
+      
+      // Force immediate state update
       return {
         ...state,
-        friendRequests: remainingRequests,
-        friends: updatedFriends
+        friendRequests: remainingRequests
       };
 
     case 'REJECT_FRIEND_REQUEST':
-      const filteredRequests = state.friendRequests.filter(req => req.id !== action.payload);
-      localStorage.setItem('campusVibe_globalFriendRequests', JSON.stringify(filteredRequests));
+      const allRequests = JSON.parse(localStorage.getItem('friendRequests') || '[]');
+      const filteredRequests = allRequests.filter(req => req.id !== action.payload);
+      localStorage.setItem('friendRequests', JSON.stringify(filteredRequests));
+      
+      console.log('Friend request rejected');
+      console.log('Remaining requests:', filteredRequests);
+      
+      // Force immediate state update
       return {
         ...state,
         friendRequests: filteredRequests
       };
 
-    case 'REFRESH_FRIEND_DATA':
-      const globalRequests = JSON.parse(localStorage.getItem('campusVibe_globalFriendRequests') || '[]');
-      const globalFriends = JSON.parse(localStorage.getItem('campusVibe_globalFriends') || '[]');
-      console.log('Refreshing friend data for:', state.currentUser?.username);
-      console.log('Global requests:', globalRequests);
+    case 'CANCEL_FRIEND_REQUEST':
+      const storedRequests = JSON.parse(localStorage.getItem('friendRequests') || '[]');
+      const cancelledRequests = storedRequests.filter(req => 
+        !(req.from === state.currentUser.username && req.to === action.payload.username && req.status === 'pending')
+      );
+      localStorage.setItem('friendRequests', JSON.stringify(cancelledRequests));
+      
+      console.log('Friend request cancelled to:', action.payload.username);
+      console.log('Remaining requests:', cancelledRequests);
+      
+      // Force immediate state update
       return {
         ...state,
-        friendRequests: globalRequests,
-        friends: globalFriends
+        friendRequests: cancelledRequests
+      };
+
+    case 'REFRESH_FRIEND_DATA':
+      // Simple refresh from localStorage
+      let requests = [];
+      try {
+        requests = JSON.parse(localStorage.getItem('friendRequests') || '[]');
+      } catch (e) {
+        requests = [];
+      }
+      
+      console.log('REFRESHING - Current user:', state.currentUser?.username);
+      console.log('REFRESHING - All requests:', requests);
+      console.log('REFRESHING - My incoming:', requests.filter(r => r.to === state.currentUser?.username));
+      
+      return {
+        ...state,
+        friendRequests: requests
       };
       
     case 'SET_LOADING':
@@ -679,6 +724,7 @@ export const AppProvider = ({ children }) => {
     addNotification: (notification) => dispatch({ type: 'ADD_NOTIFICATION', payload: notification }),
     unlockTimeCapsule: (postId) => dispatch({ type: 'UNLOCK_TIME_CAPSULE', payload: postId }),
     sendFriendRequest: (user) => dispatch({ type: 'SEND_FRIEND_REQUEST', payload: user }),
+    cancelFriendRequest: (user) => dispatch({ type: 'CANCEL_FRIEND_REQUEST', payload: user }),
     acceptFriendRequest: (requestId) => dispatch({ type: 'ACCEPT_FRIEND_REQUEST', payload: requestId }),
     rejectFriendRequest: (requestId) => dispatch({ type: 'REJECT_FRIEND_REQUEST', payload: requestId }),
     refreshFriendData: () => dispatch({ type: 'REFRESH_FRIEND_DATA' }),
@@ -686,17 +732,28 @@ export const AppProvider = ({ children }) => {
     setViewingProfile: (profile) => dispatch({ type: 'SET_VIEWING_PROFILE', payload: profile })
   };
 
-  // Refresh friend data when user changes and periodically
+  // Load friend requests on app start and when user changes
   useEffect(() => {
+    // Always refresh on mount
+    dispatch({ type: 'REFRESH_FRIEND_DATA' });
+    
     if (state.currentUser) {
-      dispatch({ type: 'REFRESH_FRIEND_DATA' });
-      
-      // Poll for new friend requests every 3 seconds
+      // Set up aggressive polling every 500ms
       const interval = setInterval(() => {
         dispatch({ type: 'REFRESH_FRIEND_DATA' });
-      }, 3000);
+      }, 500);
       
-      return () => clearInterval(interval);
+      // Refresh when window gets focus
+      const handleFocus = () => {
+        dispatch({ type: 'REFRESH_FRIEND_DATA' });
+      };
+      
+      window.addEventListener('focus', handleFocus);
+      
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('focus', handleFocus);
+      };
     }
   }, [state.currentUser?.username]);
   
