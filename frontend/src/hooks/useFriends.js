@@ -5,6 +5,8 @@ export const useFriends = () => {
   const [friendRequests, setFriendRequests] = useState([]);
   const [friends, setFriends] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [lastFetch, setLastFetch] = useState(0);
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
 
   // Send friend request
   const sendFriendRequest = async (username) => {
@@ -204,8 +206,13 @@ export const useFriends = () => {
   // Auto-refresh friend requests and friends list
   useEffect(() => {
     const refreshData = async () => {
+      const now = Date.now();
+      // Only fetch if cache is expired
+      if (now - lastFetch < CACHE_DURATION) return;
+      
       await getIncomingRequests();
       await getFriends();
+      setLastFetch(now);
     };
 
     // Initial load
@@ -215,7 +222,7 @@ export const useFriends = () => {
     const interval = setInterval(refreshData, 30000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [lastFetch]);
 
   return {
     friendRequests,

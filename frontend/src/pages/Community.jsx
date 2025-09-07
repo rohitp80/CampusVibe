@@ -3,10 +3,12 @@ import { useApp } from '../context/AppContext';
 import { supabase } from '../lib/supabase';
 import { useCommunityMembership } from '../hooks/useCommunityMembership';
 import CommunityChat from './CommunityChat';
+import CommunityPost from '../components/Community/CommunityPost.jsx';
 import { Hash, Users, MessageCircle, Send, ArrowLeft, Paperclip, Download, FileText, Image, Smile, UserPlus, UserMinus, Shield, Trash2, Crown, UserX } from 'lucide-react';
 
 const Community = () => {
   const { state, actions } = useApp();
+  const [activeTab, setActiveTab] = useState('chat');
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,6 +17,7 @@ const Community = () => {
   const [members, setMembers] = useState([]);
   const [showMembers, setShowMembers] = useState(false);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const emojiPickerRef = useRef(null);
@@ -27,7 +30,64 @@ const Community = () => {
     color: "#8B5CF6"
   };
 
-  // Use membership hook
+  // Get current user ID
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setCurrentUserId(session.user.id);
+      }
+    };
+    getCurrentUser();
+  }, []);
+
+  // Real-time subscription for membership changes
+  useEffect(() => {
+    if (!currentCommunity?.id || !currentUserId) return;
+
+    const subscription = supabase
+      .channel(`community_membership:${currentCommunity.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'community_members'
+        },
+        async (payload) => {
+          if (payload.new?.community_id === currentCommunity.id) {
+            // Refresh membership status
+            const result = await checkMembership();
+            if (result.success) {
+              setIsMember(result.isMember);
+              setIsAdmin(result.isAdmin);
+              
+              // Update member count
+              if (payload.eventType === 'INSERT') {
+                actions.addNotification({
+                  id: Date.now(),
+                  type: 'info',
+                  message: 'Someone joined the community! 🎉',
+                  timestamp: new Date()
+                });
+              } else if (payload.eventType === 'DELETE') {
+                actions.addNotification({
+                  id: Date.now(),
+                  type: 'info',
+                  message: 'Someone left the community',
+                  timestamp: new Date()
+                });
+              }
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [currentCommunity?.id, currentUserId]);
   const {
     isMember: rawIsMember,
     isAdmin,
@@ -115,20 +175,38 @@ const Community = () => {
         return;
       }
 
-      const response = await fetch(`http://localhost:3000/api/chat/community/${currentCommunity.id}/messages`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
+      // Check if community_messages table exists, otherwise use posts table
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          id,
+          content,
+          created_at,
+          user_id,
+          profiles:user_id (
+            username,
+            display_name,
+            avatar_url
+          )
+        `)
+        .eq('community_id', currentCommunity.id)
+        .order('created_at', { ascending: true })
+        .limit(50);
       
-      if (response.ok) {
-        const result = await response.json();
-        setMessages(result.data || []);
-      } else if (response.status === 403) {
-        // Not a member anymore
-        setMessages([]);
+      if (!error && data) {
+        const formattedMessages = data.map(msg => ({
+          id: msg.id,
+          content: msg.content,
+          timestamp: new Date(msg.created_at + 'Z'),
+          userId: msg.user_id,
+          username: msg.profiles?.username || 'User',
+          displayName: msg.profiles?.display_name || 'User',
+          avatar: msg.profiles?.avatar_url || '/api/placeholder/32/32'
+        }));
+        setMessages(formattedMessages);
       } else {
-        console.error('Failed to fetch messages:', response.status);
+        console.error('Failed to fetch messages:', error);
+        setMessages([]);
       }
     } catch (error) {
       console.error('Failed to fetch messages:', error);
@@ -463,13 +541,49 @@ const Community = () => {
         </div>
       </div>
 
-      {/* Live Chat Area */}
+      {/* Tabs */}
       <div className="bg-card rounded-xl border border-border shadow-card">
-        <CommunityChat 
-          communityId={currentCommunity?.id} 
-          communityName={currentCommunity?.name}
-        />
+        <div className="flex border-b border-border">
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+              activeTab === 'chat'
+                ? 'text-primary border-b-2 border-primary bg-primary/5'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <MessageCircle className="w-4 h-4 inline mr-2" />
+            Chat
+          </button>
+          <button
+            onClick={() => setActiveTab('posts')}
+            className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+              activeTab === 'posts'
+                ? 'text-primary border-b-2 border-primary bg-primary/5'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Hash className="w-4 h-4 inline mr-2" />
+            Posts
+          </button>
+        </div>
       </div>
+
+      {/* Tab Content */}
+      {activeTab === 'chat' ? (
+        /* Live Chat Area */
+        <div className="bg-card rounded-xl border border-border shadow-card">
+          <CommunityChat 
+            communityId={currentCommunity?.id} 
+            communityName={currentCommunity?.name}
+          />
+        </div>
+      ) : (
+        /* Community Posts */
+        <div className="bg-card rounded-xl border border-border shadow-card p-6">
+          <CommunityPost community={currentCommunity} />
+        </div>
+      )}
       
       {/* Members Modal */}
       {showMembers && (

@@ -1,11 +1,170 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Hash, Users, MessageCircle, Plus, Search, TrendingUp } from 'lucide-react';
+import { supabase } from '../lib/supabase.js';
+import CreatePost from '../components/Post/CreatePost.jsx';
+import PostCard from '../components/Post/PostCard.jsx';
+import { Hash, Users, MessageCircle, Plus, Search, TrendingUp, ArrowLeft, Clock } from 'lucide-react';
 
 const Communities = () => {
   const { state, actions } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [viewingCommunity, setViewingCommunity] = useState(null);
+  const [communityPosts, setCommunityPosts] = useState([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [isJoined, setIsJoined] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  // Get current user
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setCurrentUserId(session.user.id);
+      }
+    };
+    getCurrentUser();
+  }, []);
+
+  // Check membership when viewing a community
+  useEffect(() => {
+    if (viewingCommunity && currentUserId) {
+      checkMembership();
+    }
+  }, [viewingCommunity, currentUserId]);
+
+  const checkMembership = async () => {
+    try {
+      const { data } = await supabase
+        .from('community_members')
+        .select('id')
+        .eq('community_id', viewingCommunity.id)
+        .eq('user_id', currentUserId)
+        .single();
+      
+      setIsJoined(!!data);
+    } catch (error) {
+      setIsJoined(false);
+    }
+  };
+
+  const loadCommunityPosts = async (community) => {
+    setLoadingPosts(true);
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          id,
+          user_id,
+          community_id,
+          type,
+          content,
+          code_snippet,
+          image_url,
+          mood,
+          is_anonymous,
+          likes,
+          comments,
+          created_at,
+          profiles:user_id (
+            id,
+            username,
+            display_name,
+            avatar_url
+          )
+        `)
+        .eq('community_id', community.id)
+        .order('created_at', { ascending: false });
+
+      if (!error) {
+        const formattedPosts = data.map(post => ({
+          id: post.id,
+          userId: post.user_id,
+          username: post.is_anonymous ? 'anonymous' : post.profiles?.username || 'User',
+          displayName: post.is_anonymous ? 'Anonymous' : post.profiles?.display_name || 'User',
+          avatar: post.is_anonymous ? '/api/placeholder/40/40' : post.profiles?.avatar_url || '/api/placeholder/40/40',
+          community: community.name,
+          mood: post.mood || 'neutral',
+          type: post.type,
+          content: post.content,
+          isAnonymous: post.is_anonymous,
+          timestamp: new Date(post.created_at + 'Z'),
+          likes: post.likes || 0,
+          comments: post.comments || 0,
+          shares: 0,
+          isLiked: false,
+          ...(post.image_url && { imageUrl: post.image_url }),
+          ...(post.code_snippet && { codeSnippet: post.code_snippet })
+        }));
+        setCommunityPosts(formattedPosts);
+      }
+    } catch (error) {
+      console.error('Error loading community posts:', error);
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
+  const handleViewCommunity = (community) => {
+    setViewingCommunity(community);
+    loadCommunityPosts(community);
+  };
+
+  const handleBackToCommunities = () => {
+    setViewingCommunity(null);
+    setCommunityPosts([]);
+    setIsJoined(false);
+  };
+
+  const toggleMembership = async () => {
+    if (!currentUserId) {
+      actions.addNotification({
+        id: Date.now(),
+        type: 'error',
+        message: 'Please log in to join communities',
+        timestamp: new Date()
+      });
+      return;
+    }
+
+    try {
+      if (isJoined) {
+        // Leave community
+        await supabase
+          .from('community_members')
+          .delete()
+          .eq('community_id', viewingCommunity.id)
+          .eq('user_id', currentUserId);
+
+        setIsJoined(false);
+        actions.addNotification({
+          id: Date.now(),
+          type: 'info',
+          message: `Left ${viewingCommunity.name} community`,
+          timestamp: new Date()
+        });
+      } else {
+        // Join community
+        await supabase
+          .from('community_members')
+          .insert({
+            community_id: viewingCommunity.id,
+            user_id: currentUserId,
+            role: 'member'
+          });
+
+        setIsJoined(true);
+        actions.addNotification({
+          id: Date.now(),
+          type: 'success',
+          message: `Joined ${viewingCommunity.name} community! 🎉`,
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Error toggling membership:', error);
+    }
+  };
 
   const categories = ['all', 'Technology', 'Academic', 'Sports', 'Arts', 'Social'];
 
@@ -48,7 +207,111 @@ const Communities = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 p-4">
-      {/* Header */}
+      {viewingCommunity ? (
+        // Community Posts View
+        <div className="space-y-6">
+          {/* Community Header */}
+          <div className="bg-card rounded-xl border border-border shadow-card p-6">
+            <div className="flex items-center gap-4 mb-4">
+              <button
+                onClick={handleBackToCommunities}
+                className="w-10 h-10 rounded-lg hover:bg-secondary/50 flex items-center justify-center transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div 
+                className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg"
+                style={{ backgroundColor: viewingCommunity.color }}
+              >
+                #
+              </div>
+              <div className="flex-1">
+                <h1 className="text-2xl font-bold text-foreground">#{viewingCommunity.name}</h1>
+                <p className="text-muted-foreground">{viewingCommunity.description}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <Users className="w-4 h-4" />
+                  <span>{viewingCommunity.member_count || 0} members</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <MessageCircle className="w-4 h-4" />
+                  <span>{communityPosts.length} posts</span>
+                </div>
+                {viewingCommunity.category && (
+                  <span className="px-2 py-1 bg-secondary/50 rounded-md text-xs">
+                    {viewingCommunity.category}
+                  </span>
+                )}
+              </div>
+
+              <button
+                onClick={toggleMembership}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  isJoined
+                    ? 'bg-secondary/50 hover:bg-secondary/70 text-foreground'
+                    : 'bg-primary text-primary-foreground hover:opacity-90'
+                }`}
+              >
+                {isJoined ? 'Leave' : 'Join'}
+              </button>
+            </div>
+          </div>
+
+          {/* Create Post (only for members) */}
+          {isJoined && (
+            <div className="bg-card rounded-xl border border-border shadow-card p-6">
+              <CreatePost 
+                defaultCommunity={viewingCommunity} 
+                onPostCreated={() => loadCommunityPosts(viewingCommunity)}
+              />
+            </div>
+          )}
+
+          {/* Posts */}
+          <div className="space-y-6">
+            {loadingPosts ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full"></div>
+                <span className="ml-3 text-muted-foreground">Loading posts...</span>
+              </div>
+            ) : communityPosts.length === 0 ? (
+              <div className="bg-card rounded-xl border border-border shadow-card p-12 text-center">
+                <div className="w-16 h-16 bg-secondary/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <MessageCircle className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold text-foreground mb-2">
+                  No posts yet
+                </h3>
+                <p className="text-muted-foreground mb-4">
+                  {isJoined 
+                    ? 'Be the first to start a discussion in this community!'
+                    : 'Join this community to see posts and start discussions.'
+                  }
+                </p>
+                {!isJoined && (
+                  <button
+                    onClick={toggleMembership}
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity"
+                  >
+                    Join Community
+                  </button>
+                )}
+              </div>
+            ) : (
+              communityPosts.map(post => (
+                <PostCard key={post.id} post={post} />
+              ))
+            )}
+          </div>
+        </div>
+      ) : (
+        // Communities List View
+        <>
+          {/* Header */}
       <div className="bg-card rounded-xl border border-border shadow-card p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -157,7 +420,7 @@ const Communities = () => {
             {/* Action Buttons */}
             <div className="flex gap-2">
               <button
-                onClick={() => handleSelectCommunity(community)}
+                onClick={() => handleViewCommunity(community)}
                 className="flex-1 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg hover:bg-secondary/80 text-sm font-medium"
               >
                 View Posts
@@ -188,6 +451,8 @@ const Communities = () => {
           <h3 className="text-lg font-semibold mb-2">No communities found</h3>
           <p className="text-muted-foreground">Try adjusting your search or filters</p>
         </div>
+      )}
+        </>
       )}
     </div>
   );
