@@ -18,6 +18,8 @@ import {
   X
 } from 'lucide-react';
 
+import DefaultAvatar from '../ui/DefaultAvatar';
+
 const TopNav = () => {
   const { state, actions } = useApp();
   const { results, loading, searchUsers, setResults } = useSearch();
@@ -114,11 +116,15 @@ const TopNav = () => {
                         onClick={() => handleUserSelect(user)}
                         className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors text-left"
                       >
-                        <img
-                          src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
-                          alt={user.display_name}
-                          className="w-10 h-10 rounded-full"
-                        />
+                        {user.avatar_url ? (
+                          <img
+                            src={user.avatar_url}
+                            alt={user.display_name}
+                            className="w-10 h-10 rounded-full"
+                          />
+                        ) : (
+                          <DefaultAvatar size="w-10 h-10" />
+                        )}
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm truncate">{user.display_name}</p>
                           <p className="text-xs text-muted-foreground truncate">@{user.username}</p>
@@ -291,11 +297,15 @@ const TopNav = () => {
               onClick={() => setShowProfileMenu(!showProfileMenu)}
               className="flex items-center gap-2 p-1 rounded-lg hover:bg-secondary/50 transition-colors"
             >
-              <img
-                src={state.currentUser.avatar}
-                alt={state.currentUser.displayName}
-                className="w-8 h-8 rounded-full"
-              />
+              {state.currentUser.avatar ? (
+                <img
+                  src={state.currentUser.avatar}
+                  alt={state.currentUser.displayName}
+                  className="w-8 h-8 rounded-full"
+                />
+              ) : (
+                <DefaultAvatar size="w-8 h-8" />
+              )}
               <div className="hidden lg:block text-left">
                 <p className="text-sm font-medium">{state.currentUser.displayName}</p>
                 <p className="text-xs text-muted-foreground">@{state.currentUser.username}</p>

@@ -35,6 +35,7 @@ const ProfileContent = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('posts');
   const [showFriendsDropdown, setShowFriendsDropdown] = useState(false);
+  const [profileImage, setProfileImage] = useState(state.currentUser?.avatar || state.currentUser?.avatar_url || null);
   const [friendshipStatus, setFriendshipStatus] = useState('none');
   const [statusLoading, setStatusLoading] = useState(false);
   
@@ -66,6 +67,49 @@ const ProfileContent = () => {
   const hasPendingRequest = state.friendRequests?.some(req => 
     req.from === state.currentUser?.username && req.to === profileUser.username
   );
+  // Load profile data from database on mount
+  useEffect(() => {
+    const loadProfileData = async () => {
+      if (state.currentUser && state.isAuthenticated) {
+        try {
+          const { createClient } = await import('@supabase/supabase-js');
+          const supabase = createClient(
+            import.meta.env.VITE_SUPABASE_URL,
+            import.meta.env.VITE_SUPABASE_ANON_KEY
+          );
+          
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/profiles/me`, {
+              headers: {
+                'Authorization': `Bearer ${session.access_token}`
+              }
+            });
+            
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.data) {
+                const updatedUser = { ...state.currentUser, ...result.data };
+                localStorage.setItem('campusVibe_currentUser', JSON.stringify(updatedUser));
+                actions.login(updatedUser);
+                setProfileImage(result.data.avatar_url);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error loading profile data:', error);
+        }
+      }
+    };
+    
+    loadProfileData();
+  }, []);
+
+  // Update profile image when user data changes
+  useEffect(() => {
+    setProfileImage(state.currentUser?.avatar || state.currentUser?.avatar_url || null);
+  }, [state.currentUser]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -140,7 +184,8 @@ const ProfileContent = () => {
     graduationYear: state.currentUser?.graduationYear || '',
     interests: state.currentUser?.interests || [],
     skills: state.currentUser?.skills || [],
-    socialLinks: state.currentUser?.socialLinks || {}
+    socialLinks: state.currentUser?.socialLinks || {},
+    avatar: state.currentUser?.avatar || state.currentUser?.avatar_url || ''
   });
 
   const handleSave = async () => {
@@ -171,7 +216,8 @@ const ProfileContent = () => {
         department: editData.department || null,
         graduation_year: editData.graduationYear ? parseInt(editData.graduationYear) : null,
         interests: editData.interests || [],
-        skills: editData.skills || []
+        skills: editData.skills || [],
+        avatar_url: editData.avatar || null
       };
 
       // Remove empty strings and convert to null
@@ -193,11 +239,28 @@ const ProfileContent = () => {
       const result = await response.json();
       
       if (result.success) {
-        // Update local state with saved data
+        // Update local state with saved data including all profile fields
         const updatedUser = {
           ...state.currentUser,
-          ...editData
+          displayName: editData.displayName,
+          bio: editData.bio,
+          phone: editData.phone,
+          dateOfBirth: editData.dateOfBirth,
+          gender: editData.gender,
+          location: editData.location,
+          university: editData.university,
+          course: editData.course,
+          department: editData.department,
+          graduationYear: editData.graduationYear,
+          interests: editData.interests,
+          skills: editData.skills,
+          avatar: editData.avatar || profileImage,
+          avatar_url: editData.avatar || profileImage
         };
+        
+        // Update localStorage to persist the changes
+        localStorage.setItem('campusVibe_currentUser', JSON.stringify(updatedUser));
+        
         actions.login(updatedUser);
         setIsEditing(false);
         console.log('Profile updated successfully');
@@ -226,8 +289,10 @@ const ProfileContent = () => {
       graduationYear: state.currentUser?.graduationYear || '',
       interests: state.currentUser?.interests || [],
       skills: state.currentUser?.skills || [],
-      socialLinks: state.currentUser?.socialLinks || {}
+      socialLinks: state.currentUser?.socialLinks || {},
+      avatar: state.currentUser?.avatar || state.currentUser?.avatar_url || ''
     });
+    setProfileImage(state.currentUser?.avatar || state.currentUser?.avatar_url || null);
     setIsEditing(false);
   };
 
@@ -270,11 +335,19 @@ const ProfileContent = () => {
       {/* Profile Header */}
       <div className="bg-card rounded-xl border border-border shadow-card p-6">
         <div className="flex items-start gap-6">
-          <img
-            src={profileUser.avatar || profileUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileUser.username}`}
-            alt={profileUser.displayName || profileUser.display_name}
-            className="w-24 h-24 rounded-full object-cover"
-          />
+          <div className="relative">
+            {(profileImage || editData.avatar || state.currentUser?.avatar || state.currentUser?.avatar_url) ? (
+              <img
+                src={profileImage || editData.avatar || state.currentUser?.avatar || state.currentUser?.avatar_url}
+                alt={profileUser.displayName || profileUser.display_name}
+                className="w-24 h-24 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-24 h-24 rounded-full bg-white border-4 border-black flex items-center justify-center">
+                <div className="w-16 h-16 rounded-full bg-black"></div>
+              </div>
+            )}
+          </div>
           
           <div className="flex-1">
             <div className="flex items-center justify-between mb-4">
