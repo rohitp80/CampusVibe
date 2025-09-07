@@ -152,16 +152,6 @@ const Sidebar = () => {
         </div>
         
         {/* Footer */}
-        <div className="p-4 border-t border-border">
-          {!state.sidebarCollapsed && (
-            <div className="text-center">
-              <button className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 transition-opacity">
-                <Plus className="w-4 h-4 inline mr-2" />
-                Create Post
-              </button>
-            </div>
-          )}
-        </div>
         </div>
       </aside>
   );

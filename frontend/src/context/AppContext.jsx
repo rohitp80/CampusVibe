@@ -98,7 +98,7 @@ const initialState = {
       return [];
     }
   })(),
-  friends: [] // Add viewing profile state
+  friends: JSON.parse(localStorage.getItem('friends') || '[]') // Add viewing profile state
 };
 
 const appReducer = (state, action) => {
@@ -415,13 +415,28 @@ const appReducer = (state, action) => {
       
       localStorage.setItem('friendRequests', JSON.stringify(remainingRequests));
       
-      console.log('Friend request accepted:', acceptedRequest);
-      console.log('Remaining requests:', remainingRequests);
+      // Add to friends list (check for duplicates)
+      let updatedFriends = [...state.friends];
+      if (acceptedRequest) {
+        const friendExists = updatedFriends.some(f => f.username === acceptedRequest.from);
+        if (!friendExists) {
+          const newFriend = {
+            id: acceptedRequest.from,
+            username: acceptedRequest.from,
+            display_name: acceptedRequest.from
+          };
+          updatedFriends.push(newFriend);
+          localStorage.setItem('friends', JSON.stringify(updatedFriends));
+        }
+      }
       
-      // Force immediate state update
+      console.log('Friend request accepted:', acceptedRequest);
+      console.log('Updated friends:', updatedFriends);
+      
       return {
         ...state,
-        friendRequests: remainingRequests
+        friendRequests: remainingRequests,
+        friends: updatedFriends
       };
 
     case 'REJECT_FRIEND_REQUEST':
