@@ -157,10 +157,10 @@ const appReducer = (state, action) => {
     case 'ADD_POST':
       const newPost = {
         ...action.payload,
-        id: Date.now(),
-        timestamp: new Date(),
-        likes: 0,
-        comments: 0,
+        id: action.payload.id || Date.now(), // Use existing ID if provided
+        timestamp: action.payload.timestamp || new Date(), // Use existing timestamp if provided
+        likes: action.payload.likes || 0,
+        comments: action.payload.comments || 0,
         shares: 0,
         isLiked: false
       };
@@ -171,6 +171,32 @@ const appReducer = (state, action) => {
         ...state, 
         posts: newPostsList,
         filteredPosts: [newPost, ...state.filteredPosts]
+      };
+      
+    case 'UPDATE_POST':
+      const updatedPostsList = state.posts.map(post => 
+        post.id === action.payload.postId 
+          ? { ...post, ...action.payload.updates }
+          : post
+      );
+      localStorage.setItem('campusVibe_posts', JSON.stringify(updatedPostsList));
+      return {
+        ...state,
+        posts: updatedPostsList,
+        filteredPosts: state.filteredPosts?.map(post => 
+          post.id === action.payload.postId 
+            ? { ...post, ...action.payload.updates }
+            : post
+        )
+      };
+      
+    case 'REMOVE_POST':
+      const postsAfterRemoval = state.posts.filter(post => post.id !== action.payload);
+      localStorage.setItem('campusVibe_posts', JSON.stringify(postsAfterRemoval));
+      return {
+        ...state,
+        posts: postsAfterRemoval,
+        filteredPosts: state.filteredPosts?.filter(post => post.id !== action.payload)
       };
       
     case 'DELETE_POST':
@@ -740,6 +766,8 @@ export const AppProvider = ({ children }) => {
     setSelectedChatFriend: (friend) => dispatch({ type: 'SET_SELECTED_CHAT_FRIEND', payload: friend }),
     toggleSidebar: () => dispatch({ type: 'TOGGLE_SIDEBAR' }),
     addPost: (post) => dispatch({ type: 'ADD_POST', payload: post }),
+    updatePost: (postId, updates) => dispatch({ type: 'UPDATE_POST', payload: { postId, updates } }),
+    removePost: (postId) => dispatch({ type: 'REMOVE_POST', payload: postId }),
     deletePost: (postId) => dispatch({ type: 'DELETE_POST', payload: postId }),
     savePost: (post) => dispatch({ type: 'SAVE_POST', payload: post }),
     unsavePost: (postId) => dispatch({ type: 'UNSAVE_POST', payload: postId }),

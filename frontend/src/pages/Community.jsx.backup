@@ -15,6 +15,7 @@ const Community = () => {
   const [members, setMembers] = useState([]);
   const [showMembers, setShowMembers] = useState(false);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [activeTab, setActiveTab] = useState('discussion'); // Add tab state
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const emojiPickerRef = useRef(null);
@@ -463,12 +464,325 @@ const Community = () => {
         </div>
       </div>
 
-      {/* Live Chat Area */}
+      {/* Tabbed Content Area */}
       <div className="bg-card rounded-xl border border-border shadow-card">
-        <CommunityChat 
-          communityId={currentCommunity?.id} 
-          communityName={currentCommunity?.name}
-        />
+        {/* Tab Navigation */}
+        <div className="border-b border-border">
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab('discussion')}
+              className={`px-6 py-3 font-medium transition-colors ${
+                activeTab === 'discussion'
+                  ? 'text-primary border-b-2 border-primary bg-primary/5'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Discussion
+            </button>
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={`px-6 py-3 font-medium transition-colors ${
+                activeTab === 'chat'
+                  ? 'text-primary border-b-2 border-primary bg-primary/5'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <MessageCircle className="w-4 h-4 inline mr-2" />
+              Live Chat
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'discussion' ? (
+          <div className="p-6">
+            <h2 className="text-lg font-semibold mb-4">Community Discussion</h2>
+            
+            {/* Messages Display */}
+            <div className="space-y-4 mb-6 max-h-96 overflow-y-auto">
+              {loading ? (
+                <div className="text-center py-8">
+                  <div className="text-muted-foreground">Loading messages...</div>
+                </div>
+              ) : messages.length > 0 ? (
+                messages.map((msg) => (
+                  <div key={msg.id} className="flex gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-medium text-primary">
+                        {msg.username?.charAt(0)?.toUpperCase() || '?'}
+                      </span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-sm">{msg.username}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(msg.created_at).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <div className="text-sm">
+                        {(() => {
+                          if (msg.message.startsWith('FILE:')) {
+                            const fileInfoStr = msg.message.replace('FILE:', '');
+                            try {
+                              const fileInfo = JSON.parse(fileInfoStr);
+                              return (
+                                <div className="bg-secondary p-3 rounded-lg max-w-xs">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    {getFileIcon(fileInfo.name)}
+                                    <span className="font-medium text-sm">{fileInfo.name}</span>
+                                  </div>
+                                  <div className="text-xs text-muted-foreground mb-2">
+                                    {formatFileSize(fileInfo.size)}
+                                  </div>
+                                  <a
+                                    href={fileInfo.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs bg-primary text-primary-foreground px-2 py-1 rounded hover:bg-primary/90"
+                                  >
+                                    <Download className="w-3 h-3" />
+                                    Download
+                                  </a>
+                                </div>
+                              );
+                            } catch (e) {
+                              return <p className="text-sm">{msg.message}</p>;
+                            }
+                          })()
+                        }
+                        <p className="text-sm">{msg.message}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <MessageCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No messages yet</p>
+                  <p className="text-sm">Start the conversation!</p>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Message Input */}
+            {isMember && (
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    placeholder="Type your message..."
+                    className="flex-1 px-4 py-2 bg-secondary/30 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                  <button
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className="p-2 hover:bg-secondary rounded-lg"
+                  >
+                    <Smile className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-2 hover:bg-secondary rounded-lg"
+                  >
+                    <Paperclip className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={sendMessage}
+                    disabled={!message.trim()}
+                    className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+                
+                {uploading && (
+                  <div className="mt-2 text-sm text-muted-foreground">
+                    Uploading file...
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="p-0">
+            <CommunityChat 
+              communityId={currentCommunity?.id} 
+              communityName={currentCommunity?.name}
+            />
+          </div>
+        )}
+      </div>
+        
+        {!isMember ? (
+          <div className="text-center py-12">
+            <MessageCircle className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">Join to participate</h3>
+            <p className="text-muted-foreground mb-4">
+              You need to be a member of this community to view and send messages.
+            </p>
+            <button
+              onClick={async () => {
+                const result = await joinCommunity();
+                if (!result.success) {
+                  alert(result.error);
+                }
+              }}
+              className="bg-primary text-primary-foreground px-6 py-2 rounded-lg hover:bg-primary/90 flex items-center gap-2 mx-auto"
+            >
+              <UserPlus className="w-4 h-4" />
+              Join Community
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Messages */}
+            <div className="space-y-3 mb-4 h-80 overflow-y-auto">
+              {loading ? (
+                <div className="text-center text-muted-foreground">Loading messages...</div>
+              ) : (
+                <>
+                  {messages.map(msg => (
+                    <div key={msg.id} className="flex gap-3">
+                      <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-sm font-medium">
+                        {msg.username.charAt(0)}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-sm">{msg.username}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        
+                        {/* Check if message contains file info */}
+                        {msg.message.includes('📎') && msg.message.includes('|') ? (
+                          (() => {
+                            const [displayText, fileInfoStr] = msg.message.split(' | ');
+                            try {
+                              const fileInfo = JSON.parse(fileInfoStr);
+                              return (
+                                <div className="bg-secondary p-3 rounded-lg max-w-xs">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    {getFileIcon(fileInfo.fileName)}
+                                    <span className="text-sm font-medium">{fileInfo.fileName}</span>
+                                  </div>
+                                  {fileInfo.fileSize && (
+                                    <p className="text-xs text-muted-foreground mb-2">
+                                      {formatFileSize(fileInfo.fileSize)}
+                                    </p>
+                                  )}
+                                  <a 
+                                    href={fileInfo.fileUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-primary hover:underline text-sm"
+                                  >
+                                    <Download className="w-3 h-3" />
+                                    Download
+                                  </a>
+                                </div>
+                              );
+                            } catch (e) {
+                              return <p className="text-sm">{msg.message}</p>;
+                            }
+                          })()
+                        ) : (
+                          /* Regular Text Message */
+                          <p className="text-sm">{msg.message}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </>
+              )}
+            </div>
+            
+            {/* Message Input - Only for members */}
+            <div className="relative">
+              <div className="flex gap-2">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.txt,.zip,.rar"
+                />
+                
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="p-2 hover:bg-secondary rounded-lg disabled:opacity-50"
+                  title="Attach file"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </button>
+                
+                <div className="relative">
+                  <button
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className="p-2 hover:bg-secondary rounded-lg"
+                    title="Add emoji"
+                  >
+                    <Smile className="w-5 h-5" />
+                  </button>
+                  
+                  {/* Emoji Picker */}
+                  {showEmojiPicker && (
+                    <div 
+                      ref={emojiPickerRef}
+                      className="absolute bottom-12 left-0 bg-card border border-border rounded-lg p-3 shadow-lg z-10 w-64"
+                    >
+                      <div className="grid grid-cols-8 gap-1">
+                        {commonEmojis.map((emoji, index) => (
+                          <button
+                            key={index}
+                            onClick={() => addEmoji(emoji)}
+                            className="p-2 hover:bg-secondary rounded text-lg"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <input
+                  type="text"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                  placeholder="Type a message..."
+                  className="flex-1 px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                
+                <button
+                  onClick={sendMessage}
+                  disabled={!message.trim()}
+                  className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+              
+              {uploading && (
+                <div className="mt-2 text-sm text-muted-foreground">
+                  Uploading file...
+                </div>
+              )}
+            </div>
+        ) : (
+          <div className="p-0">
+            <CommunityChat 
+              communityId={currentCommunity?.id} 
+              communityName={currentCommunity?.name}
+            />
+          </div>
+        )}
       </div>
       
       {/* Members Modal */}

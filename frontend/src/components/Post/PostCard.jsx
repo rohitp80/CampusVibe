@@ -204,15 +204,18 @@ const PostCard = ({ post, onPostDeleted }) => {
   
   const formatTimeAgo = (date) => {
     const now = new Date();
-    const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
+    const diffInSeconds = Math.floor((now - date) / 1000);
     
-    if (diffInHours < 1) {
-      const diffInMinutes = Math.floor((now - date) / (1000 * 60));
+    if (diffInSeconds < 60) {
+      return 'just now';
+    } else if (diffInSeconds < 3600) { // Less than 1 hour
+      const diffInMinutes = Math.floor(diffInSeconds / 60);
       return `${diffInMinutes}m ago`;
-    } else if (diffInHours < 24) {
+    } else if (diffInSeconds < 86400) { // Less than 24 hours
+      const diffInHours = Math.floor(diffInSeconds / 3600);
       return `${diffInHours}h ago`;
     } else {
-      const diffInDays = Math.floor(diffInHours / 24);
+      const diffInDays = Math.floor(diffInSeconds / 86400);
       return `${diffInDays}d ago`;
     }
   };
