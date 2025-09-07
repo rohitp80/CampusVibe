@@ -13,6 +13,7 @@ import Profile from './Profile';
 import Chat from './Chat';
 import SavedPosts from './SavedPosts';
 import EventDetail from './EventDetail';
+import Settings from './Settings';
 
 const Index = () => {
   const { state, actions } = useApp();
@@ -29,6 +30,7 @@ const Index = () => {
       case 'profile': return <Profile />;
       case 'chat': return <Chat preSelectedFriend={state.selectedChatFriend} />;
       case 'eventDetail': return <EventDetail />;
+      case 'settings': return <Settings />;
       default: 
         console.log('Default case hit! currentPage was:', state.currentPage);
         return <Feed />;
