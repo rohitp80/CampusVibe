@@ -45,13 +45,6 @@ const Chat = () => {
     };
   }, [selectedFriend, currentUserId]);
 
-  const getConversationId = () => {
-    if (!selectedFriend || !currentUserId) return null;
-    // Create consistent conversation ID by sorting user IDs
-    const ids = [currentUserId, selectedFriend.id].sort();
-    return `${ids[0]}_${ids[1]}`;
-  };
-
   const loadMessages = async () => {
     try {
       setLoadingMessages(true);
@@ -94,7 +87,7 @@ const Chat = () => {
 
   const setupRealtimeSubscription = () => {
     subscriptionRef.current = supabase
-      .channel('messages')
+      .channel('public:messages')
       .on(
         'postgres_changes',
         {
@@ -103,18 +96,18 @@ const Chat = () => {
           table: 'messages'
         },
         (payload) => {
-          // Only add message if it's from current conversation participants
-          if (payload.new.user_id === currentUserId || payload.new.user_id === selectedFriend.id) {
+          // Only add message if it's from the other user (we already added our own optimistically)
+          if (payload.new.user_id === selectedFriend.id) {
             const newMessage = {
               id: payload.new.id,
               content: payload.new.content,
               created_at: payload.new.created_at,
               user_id: payload.new.user_id,
               profiles: {
-                id: payload.new.user_id,
-                username: payload.new.user_id === currentUserId ? 'You' : selectedFriend.username,
-                display_name: payload.new.user_id === currentUserId ? 'You' : selectedFriend.display_name,
-                avatar_url: payload.new.user_id === currentUserId ? null : selectedFriend.avatar_url
+                id: selectedFriend.id,
+                username: selectedFriend.username,
+                display_name: selectedFriend.display_name,
+                avatar_url: selectedFriend.avatar_url
               }
             };
             
@@ -128,23 +121,44 @@ const Chat = () => {
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedFriend || !currentUserId) return;
 
+    const messageContent = newMessage.trim();
+    setNewMessage(''); // Clear input immediately
+
+    // Add message to UI immediately (optimistic update)
+    const tempMessage = {
+      id: Date.now(), // Temporary ID
+      content: messageContent,
+      created_at: new Date().toISOString(),
+      user_id: currentUserId,
+      profiles: {
+        id: currentUserId,
+        username: 'You',
+        display_name: 'You',
+        avatar_url: null
+      }
+    };
+    
+    setMessages(prev => [...prev, tempMessage]);
+
     try {
-      // Send message without conversation_id since it's causing UUID errors
+      // Send to database
       const { error } = await supabase
         .from('messages')
         .insert({
-          content: newMessage.trim(),
+          content: messageContent,
           user_id: currentUserId
         });
 
       if (error) {
         console.error('Error sending message:', error);
+        // Remove the optimistic message on error
+        setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
         return;
       }
-
-      setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
+      // Remove the optimistic message on error
+      setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
     }
   };
 
