@@ -56,8 +56,8 @@ const getInitialFilteredPosts = () => {
 
 const initialState = {
   // Authentication
-  isAuthenticated: false,
-  currentUser: null,
+  isAuthenticated: !!localStorage.getItem('campusVibe_currentUser'),
+  currentUser: JSON.parse(localStorage.getItem('campusVibe_currentUser') || 'null'),
   
   // App state
   theme: 'dark',
@@ -109,6 +109,7 @@ const appReducer = (state, action) => {
   
   switch (action.type) {
     case 'LOGIN':
+      localStorage.setItem('campusVibe_currentUser', JSON.stringify(action.payload));
       return { 
         ...state, 
         isAuthenticated: true, 
@@ -116,6 +117,7 @@ const appReducer = (state, action) => {
       };
       
     case 'LOGOUT':
+      localStorage.removeItem('campusVibe_currentUser');
       return { 
         ...state, 
         isAuthenticated: false, 
@@ -459,7 +461,7 @@ const appReducer = (state, action) => {
       console.log('SENT REQUEST:', request);
       console.log('ALL REQUESTS NOW:', updatedRequests);
       
-      // Force immediate state update
+      // Force immediate state update - NO NOTIFICATION ADDED
       return {
         ...state,
         friendRequests: updatedRequests

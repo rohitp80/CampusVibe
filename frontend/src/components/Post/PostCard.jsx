@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
 import { supabase } from '../../lib/supabase.js';
+import DefaultAvatar from '../ui/DefaultAvatar';
 import { 
   Heart, 
   MessageCircle, 
@@ -373,11 +374,17 @@ const PostCard = ({ post, onPostDeleted }) => {
     <div className="bg-card rounded-xl border border-border shadow-card hover-lift p-6 animate-fade-in">
       {/* Header */}
       <div className="flex items-start gap-3 mb-4">
-        <img 
-          src={post.isAnonymous ? '/api/placeholder/40/40' : post.avatar}
-          alt={post.displayName}
-          className="w-10 h-10 rounded-full object-cover"
-        />
+        {post.isAnonymous ? (
+          <DefaultAvatar size="w-10 h-10" />
+        ) : post.avatar ? (
+          <img 
+            src={post.avatar}
+            alt={post.displayName}
+            className="w-10 h-10 rounded-full object-cover"
+          />
+        ) : (
+          <DefaultAvatar size="w-10 h-10" />
+        )}
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">

@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useFriends } from '../hooks/useFriends.js';
 import { supabase } from '../lib/supabase';
-import { MessageCircle, Send, Users, User, Smile, Paperclip, Image, FileText, Video } from 'lucide-react';
+import FriendRequests from '../components/Notifications/FriendRequests.jsx';
+import { MessageCircle, Send, Users, User, Smile, Paperclip, Image, FileText, Video, UserPlus } from 'lucide-react';
 
 const Chat = ({ preSelectedFriend = null }) => {
   const { friends, loading } = useFriends();
   const displayFriends = friends;
   
+  const [activeTab, setActiveTab] = useState('chats');
   const [selectedFriend, setSelectedFriend] = useState(preSelectedFriend);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -376,15 +378,44 @@ const Chat = ({ preSelectedFriend = null }) => {
   return (
     <div className="max-w-6xl mx-auto p-6">
       <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
-        <div className="flex h-[600px]">
-          {/* Friends List */}
-          <div className="w-1/3 border-r border-border bg-secondary/20">
-            <div className="p-4 border-b border-border">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Friends ({displayFriends?.length || 0})
-              </h2>
-            </div>
+        {/* Tabs */}
+        <div className="border-b border-border bg-secondary/10">
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab('chats')}
+              className={`px-6 py-3 font-medium transition-colors ${
+                activeTab === 'chats'
+                  ? 'text-primary border-b-2 border-primary bg-primary/5'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <MessageCircle className="w-4 h-4 inline mr-2" />
+              Chats
+            </button>
+            <button
+              onClick={() => setActiveTab('requests')}
+              className={`px-6 py-3 font-medium transition-colors ${
+                activeTab === 'requests'
+                  ? 'text-primary border-b-2 border-primary bg-primary/5'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <UserPlus className="w-4 h-4 inline mr-2" />
+              Friend Requests
+            </button>
+          </div>
+        </div>
+
+        {activeTab === 'chats' && (
+          <div className="flex h-[600px]">
+            {/* Friends List */}
+            <div className="w-1/3 border-r border-border bg-secondary/20">
+              <div className="p-4 border-b border-border">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  Friends ({displayFriends?.length || 0})
+                </h2>
+              </div>
             
             <div className="overflow-y-auto h-full">
               {displayFriends?.length > 0 ? (
@@ -653,6 +684,13 @@ const Chat = ({ preSelectedFriend = null }) => {
             )}
           </div>
         </div>
+        )}
+
+        {activeTab === 'requests' && (
+          <div className="p-6">
+            <FriendRequests showHeader={false} />
+          </div>
+        )}
       </div>
     </div>
   );
