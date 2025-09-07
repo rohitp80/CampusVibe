@@ -49,7 +49,7 @@ const Chat = () => {
     try {
       setLoadingMessages(true);
       
-      // Load messages between current user and selected friend
+      // Load messages between current user and selected friend only
       const { data, error } = await supabase
         .from('messages')
         .select(`
@@ -64,7 +64,7 @@ const Chat = () => {
             avatar_url
           )
         `)
-        .or(`user_id.eq.${currentUserId},user_id.eq.${selectedFriend.id}`)
+        .or(`and(user_id.eq.${currentUserId},chat_id.eq.${selectedFriend.id}),and(user_id.eq.${selectedFriend.id},chat_id.eq.${currentUserId})`)
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -72,12 +72,7 @@ const Chat = () => {
         return;
       }
 
-      // Filter messages to only show conversation between these two users
-      const conversationMessages = data?.filter(msg => 
-        (msg.user_id === currentUserId || msg.user_id === selectedFriend.id)
-      ) || [];
-
-      setMessages(conversationMessages);
+      setMessages(data || []);
     } catch (error) {
       console.error('Error loading messages:', error);
     } finally {
@@ -87,7 +82,7 @@ const Chat = () => {
 
   const setupRealtimeSubscription = () => {
     subscriptionRef.current = supabase
-      .channel('public:messages')
+      .channel(`chat:${currentUserId}_${selectedFriend.id}`)
       .on(
         'postgres_changes',
         {
@@ -96,8 +91,8 @@ const Chat = () => {
           table: 'messages'
         },
         (payload) => {
-          // Only add message if it's from the other user (we already added our own optimistically)
-          if (payload.new.user_id === selectedFriend.id) {
+          // Only show messages sent to current user from selected friend
+          if (payload.new.user_id === selectedFriend.id && payload.new.chat_id === currentUserId) {
             const newMessage = {
               id: payload.new.id,
               content: payload.new.content,
@@ -141,12 +136,13 @@ const Chat = () => {
     setMessages(prev => [...prev, tempMessage]);
 
     try {
-      // Send to database
+      // Send to database with receiver (using chat_id field as receiver)
       const { error } = await supabase
         .from('messages')
         .insert({
           content: messageContent,
-          user_id: currentUserId
+          user_id: currentUserId,
+          chat_id: selectedFriend.id // Use chat_id as receiver_id
         });
 
       if (error) {
