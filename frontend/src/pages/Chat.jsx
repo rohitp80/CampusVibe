@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useFriends } from '../hooks/useFriends.js';
 import { supabase } from '../lib/supabase';
-import { MessageCircle, Send, Users, User } from 'lucide-react';
+import { MessageCircle, Send, Users, User, Smile, Paperclip, Image, FileText, Video } from 'lucide-react';
 
 const Chat = () => {
   const { friends, loading } = useFriends();
@@ -12,8 +12,11 @@ const Chat = () => {
   const [newMessage, setNewMessage] = useState('');
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
   const messagesEndRef = useRef(null);
   const subscriptionRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Get current user on mount
   useEffect(() => {
@@ -26,6 +29,9 @@ const Chat = () => {
     getCurrentUser();
   }, []);
 
+  // Common emojis
+  const emojis = ['😀', '😂', '😍', '🥰', '😊', '😎', '🤔', '😢', '😭', '😡', '👍', '👎', '❤️', '🔥', '💯', '🎉', '👏', '🙏', '💪', '✨'];
+
   // Only auto-scroll when sending a new message
   const scrollToBottom = () => {
     const messagesContainer = document.querySelector('.messages-container');
@@ -33,6 +39,138 @@ const Chat = () => {
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
   };
+
+  const addEmoji = (emoji) => {
+    setNewMessage(prev => prev + emoji);
+    setShowEmojiPicker(false);
+  };
+
+  const handleFileSelect = (type) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    
+    switch(type) {
+      case 'image':
+        input.accept = 'image/*';
+        break;
+      case 'video':
+        input.accept = 'video/*';
+        break;
+      case 'document':
+        input.accept = '.pdf,.doc,.docx,.txt,.xlsx,.pptx';
+        break;
+      default:
+        input.accept = '*/*';
+    }
+    
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        handleFileUpload(file, type);
+      }
+    };
+    
+    input.click();
+    setShowAttachMenu(false);
+  };
+
+  const handleFileUpload = async (file, type) => {
+    try {
+      // Upload file to Supabase storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `chat-files/${fileName}`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('chat-files')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        console.error('Error uploading file:', uploadError);
+        return;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-files')
+        .getPublicUrl(filePath);
+
+      // Send message with file attachment
+      const fileMessage = type === 'image' ? `📷 Image: ${file.name}` :
+                         type === 'video' ? `🎥 Video: ${file.name}` :
+                         `📄 ${file.name}`;
+
+      const messageType = type === 'document' ? 'file' : 
+                         type === 'video' ? 'file' : type; // Use 'file' for both document and video
+      await sendFileMessage(fileMessage, messageType, publicUrl, file.name);
+      
+    } catch (error) {
+      console.error('Error handling file upload:', error);
+    }
+  };
+
+  const sendFileMessage = async (content, messageType, fileUrl, fileName) => {
+    if (!selectedFriend || !currentUserId) return;
+
+    // Add message to UI immediately (optimistic update)
+    const tempMessage = {
+      id: `temp_${Date.now()}`,
+      content: fileName, // Just show filename for now
+      created_at: new Date().toISOString(),
+      sender_id: currentUserId,
+      receiver_id: selectedFriend.id,
+      is_read: false,
+      message_type: messageType,
+      file_url: fileUrl,
+      file_name: fileName,
+      sender: {
+        id: currentUserId,
+        username: 'You',
+        display_name: 'You',
+        avatar_url: null
+      }
+    };
+    
+    setMessages(prev => [...prev, tempMessage]);
+    setTimeout(() => scrollToBottom(), 100);
+
+    try {
+      // Store file URL and metadata in database
+      const { error } = await supabase
+        .from('chat_messages')
+        .insert({
+          content: fileName, // Store filename as content
+          sender_id: currentUserId,
+          receiver_id: selectedFriend.id,
+          message_type: messageType,
+          file_url: fileUrl,
+          file_name: fileName
+        });
+
+      if (error) {
+        console.error('Error sending file message:', error);
+        setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
+      }
+    } catch (error) {
+      console.error('Error sending file message:', error);
+      setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
+    }
+  };
+
+  // Close menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.emoji-picker') && !event.target.closest('.emoji-button')) {
+        setShowEmojiPicker(false);
+      }
+      if (!event.target.closest('.attach-menu') && !event.target.closest('.attach-button')) {
+        setShowAttachMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Load messages and set up real-time subscription
   useEffect(() => {
@@ -63,6 +201,9 @@ const Chat = () => {
           sender_id,
           receiver_id,
           is_read,
+          message_type,
+          file_url,
+          file_name,
           sender:sender_id (
             id,
             username,
@@ -118,6 +259,9 @@ const Chat = () => {
                 sender_id,
                 receiver_id,
                 is_read,
+                message_type,
+                file_url,
+                file_name,
                 sender:sender_id (
                   id,
                   username,
@@ -320,7 +464,56 @@ const Chat = () => {
                               : 'bg-secondary text-secondary-foreground'
                           }`}
                         >
-                          <p className="text-sm">{message.content}</p>
+                          {/* Render different content based on message type */}
+                          {message.message_type === 'image' ? (
+                            <div>
+                              {message.file_url ? (
+                                <img 
+                                  src={message.file_url} 
+                                  alt={message.file_name || 'Image'}
+                                  className="max-w-full h-auto rounded mb-2 cursor-pointer"
+                                  onClick={() => window.open(message.file_url, '_blank')}
+                                />
+                              ) : (
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Image className="w-4 h-4" />
+                                  <span className="text-sm">{message.content.replace('📷 Image: ', '')}</span>
+                                </div>
+                              )}
+                            </div>
+                          ) : message.message_type === 'file' && message.file_name && /\.(mp4|mov|avi|webm)$/i.test(message.file_name) ? (
+                            <div>
+                              {message.file_url ? (
+                                <video 
+                                  src={message.file_url} 
+                                  controls
+                                  className="max-w-full h-auto rounded mb-2"
+                                />
+                              ) : (
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Video className="w-4 h-4" />
+                                  <span className="text-sm">{message.content.replace('🎥 Video: ', '')}</span>
+                                </div>
+                              )}
+                            </div>
+                          ) : message.message_type === 'file' ? (
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <FileText className="w-4 h-4" />
+                                <a 
+                                  href={message.file_url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-sm underline hover:no-underline"
+                                >
+                                  {message.file_name || message.content.replace('📄 ', '')}
+                                </a>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-sm">{message.content}</p>
+                          )}
+                          
                           <p className="text-xs opacity-70 mt-1">
                             {new Date(message.created_at).toLocaleTimeString([], {
                               hour: '2-digit',
@@ -343,8 +536,77 @@ const Chat = () => {
                 </div>
 
                 {/* Message Input */}
-                <div className="p-4 border-t border-border">
-                  <div className="flex gap-2">
+                <div className="p-4 border-t border-border relative">
+                  {/* Emoji Picker */}
+                  {showEmojiPicker && (
+                    <div className="absolute bottom-16 left-4 bg-card border border-border rounded-lg p-3 shadow-lg z-10 emoji-picker">
+                      <div className="grid grid-cols-5 gap-2 max-w-xs">
+                        {emojis.map((emoji, index) => (
+                          <button
+                            key={index}
+                            onClick={() => addEmoji(emoji)}
+                            className="text-xl hover:bg-secondary rounded p-1 transition-colors"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Attachment Menu */}
+                  {showAttachMenu && (
+                    <div className="absolute bottom-16 left-16 bg-card border border-border rounded-lg p-2 shadow-lg z-10 attach-menu">
+                      <div className="flex flex-col gap-1">
+                        <button
+                          onClick={() => handleFileSelect('image')}
+                          className="flex items-center gap-2 px-3 py-2 hover:bg-secondary rounded text-sm transition-colors"
+                        >
+                          <Image className="w-4 h-4" />
+                          Image
+                        </button>
+                        <button
+                          onClick={() => handleFileSelect('video')}
+                          className="flex items-center gap-2 px-3 py-2 hover:bg-secondary rounded text-sm transition-colors"
+                        >
+                          <Video className="w-4 h-4" />
+                          Video
+                        </button>
+                        <button
+                          onClick={() => handleFileSelect('document')}
+                          className="flex items-center gap-2 px-3 py-2 hover:bg-secondary rounded text-sm transition-colors"
+                        >
+                          <FileText className="w-4 h-4" />
+                          Document
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 items-center">
+                    {/* Attachment Button */}
+                    <button
+                      onClick={() => {
+                        setShowAttachMenu(!showAttachMenu);
+                        setShowEmojiPicker(false);
+                      }}
+                      className="p-2 hover:bg-secondary rounded-lg transition-colors attach-button"
+                    >
+                      <Paperclip className="w-4 h-4 text-muted-foreground" />
+                    </button>
+
+                    {/* Emoji Button */}
+                    <button
+                      onClick={() => {
+                        setShowEmojiPicker(!showEmojiPicker);
+                        setShowAttachMenu(false);
+                      }}
+                      className="p-2 hover:bg-secondary rounded-lg transition-colors emoji-button"
+                    >
+                      <Smile className="w-4 h-4 text-muted-foreground" />
+                    </button>
+
+                    {/* Message Input */}
                     <input
                       type="text"
                       value={newMessage}
@@ -353,6 +615,8 @@ const Chat = () => {
                       placeholder={`Message ${selectedFriend.display_name}...`}
                       className="flex-1 px-4 py-2 bg-secondary/30 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder-muted-foreground"
                     />
+
+                    {/* Send Button */}
                     <button
                       onClick={sendMessage}
                       disabled={!newMessage.trim()}
