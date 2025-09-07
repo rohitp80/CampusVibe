@@ -53,7 +53,22 @@ router.get('/', async (req, res) => {
 // Update user profile
 router.put('/', async (req, res) => {
   try {
-    const { full_name, bio, college, course, year } = req.body;
+    const { 
+      display_name, 
+      bio, 
+      phone,
+      date_of_birth,
+      gender,
+      location,
+      university, 
+      course, 
+      department,
+      graduation_year,
+      year,
+      interests,
+      skills
+    } = req.body;
+    
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
@@ -74,11 +89,19 @@ router.put('/', async (req, res) => {
     }
 
     const updateData = {};
-    if (full_name !== undefined) updateData.full_name = full_name;
+    if (display_name !== undefined) updateData.display_name = display_name;
     if (bio !== undefined) updateData.bio = bio;
-    if (college !== undefined) updateData.college = college;
+    if (phone !== undefined) updateData.phone = phone;
+    if (date_of_birth !== undefined) updateData.date_of_birth = date_of_birth;
+    if (gender !== undefined) updateData.gender = gender;
+    if (location !== undefined) updateData.location = location;
+    if (university !== undefined) updateData.university = university;
     if (course !== undefined) updateData.course = course;
+    if (department !== undefined) updateData.department = department;
+    if (graduation_year !== undefined) updateData.graduation_year = graduation_year;
     if (year !== undefined) updateData.year = year;
+    if (interests !== undefined) updateData.interests = interests;
+    if (skills !== undefined) updateData.skills = skills;
     updateData.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase
@@ -112,17 +135,55 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { data, error } = await supabase
+    // Get profile with email from auth.users join
+    let { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, bio, college, course, year, avatar_url, created_at')
+      .select(`
+        id, 
+        username, 
+        display_name, 
+        avatar_url, 
+        bio, 
+        email,
+        phone,
+        date_of_birth,
+        gender,
+        location,
+        university,
+        course,
+        department,
+        graduation_year,
+        year,
+        interests,
+        skills,
+        created_at,
+        updated_at
+      `)
       .eq('id', id)
       .single();
 
-    if (error) {
+    if (error && error.code === 'PGRST116') {
       return res.status(404).json({
         success: false,
-        error: { message: 'Profile not found', code: 'NOT_FOUND' }
+        error: { 
+          message: 'Profile not found', 
+          code: 'NOT_FOUND' 
+        }
       });
+    } else if (error) {
+      throw error;
+    }
+
+    // If email is null in profiles, try to get it from auth.users
+    if (!data.email) {
+      try {
+        const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(id);
+        if (authUser?.user?.email) {
+          data.email = authUser.user.email;
+        }
+      } catch (authErr) {
+        console.log('Could not fetch email from auth.users:', authErr.message);
+      }
     }
 
     res.json({
@@ -130,6 +191,7 @@ router.get('/:id', async (req, res) => {
       data
     });
   } catch (err) {
+    console.error('Profile fetch error:', err);
     res.status(500).json({
       success: false,
       error: { message: err.message, code: 'INTERNAL_ERROR' }
