@@ -26,37 +26,38 @@ const Chat = () => {
     getCurrentUser();
   }, []);
 
-  // Load messages when friend is selected and poll for new messages
+  // Load messages and poll for updates
   useEffect(() => {
-    if (selectedFriend) {
+    if (!selectedFriend || !currentUserId) return;
+
+    loadMessages(selectedFriend.id);
+
+    // Poll for new messages every 1 second
+    const interval = setInterval(() => {
       loadMessages(selectedFriend.id);
-      
-      // Poll for new messages every 2 seconds
-      const interval = setInterval(() => {
-        loadMessages(selectedFriend.id);
-      }, 2000);
-      
-      return () => clearInterval(interval);
-    }
-  }, [selectedFriend]);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [selectedFriend, currentUserId]);
 
   const loadMessages = async (friendId) => {
     try {
       setLoadingMessages(true);
-      const { data: { session } } = await supabase.auth.getSession();
       
-      if (!session) return;
-
-      const response = await fetch(`http://localhost:3000/api/chat/direct/${friendId}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setMessages(result.data || []);
-      }
+      // Get all messages from localStorage
+      const saved = localStorage.getItem('allChatMessages');
+      const allMessages = saved ? JSON.parse(saved) : [];
+      
+      // Filter messages for this conversation
+      const conversationMessages = allMessages.filter(msg => 
+        (msg.sender_id === currentUserId && msg.receiver_id === friendId) ||
+        (msg.sender_id === friendId && msg.receiver_id === currentUserId)
+      );
+      
+      // Sort by timestamp
+      conversationMessages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      
+      setMessages(conversationMessages);
     } catch (error) {
       console.error('Load messages error:', error);
       setMessages([]);
@@ -79,8 +80,25 @@ const Chat = () => {
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedFriend) return;
     
-    // Always try real messaging
-    await sendRealMessage();
+    const message = {
+      id: Date.now(),
+      message: newMessage.trim(),
+      sender_id: currentUserId,
+      receiver_id: selectedFriend.id,
+      created_at: new Date().toISOString()
+    };
+    
+    // Get all messages from localStorage
+    const saved = localStorage.getItem('allChatMessages');
+    const allMessages = saved ? JSON.parse(saved) : [];
+    
+    // Add new message
+    allMessages.push(message);
+    localStorage.setItem('allChatMessages', JSON.stringify(allMessages));
+    
+    // Update current conversation
+    loadMessages(selectedFriend.id);
+    setNewMessage('');
   };
 
   const sendRealMessage = async () => {
@@ -227,7 +245,7 @@ const Chat = () => {
                     </div>
                   ) : (
                     messages.map((message) => {
-                      const isCurrentUser = message.sender_id === currentUserId || message.sender_id === 'current_user';
+                      const isCurrentUser = message.sender_id === currentUserId;
                       
                       return (
                         <div
