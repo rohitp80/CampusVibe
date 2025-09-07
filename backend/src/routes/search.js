@@ -19,7 +19,24 @@ router.get('/users', async (req, res) => {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username, display_name, avatar_url, bio, university')
+      .select(`
+        id, 
+        username, 
+        display_name, 
+        avatar_url, 
+        bio, 
+        email,
+        phone,
+        date_of_birth,
+        gender,
+        location,
+        university,
+        course,
+        department,
+        graduation_year,
+        interests,
+        skills
+      `)
       .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
       .limit(10);
 

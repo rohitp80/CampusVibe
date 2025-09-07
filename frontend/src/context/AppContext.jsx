@@ -425,23 +425,79 @@ export const AppProvider = ({ children }) => {
   // Initialize Supabase auth listener
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        dispatch({ 
-          type: 'LOGIN', 
-          payload: {
-            id: session.user.id,
-            email: session.user.email,
-            displayName: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email,
-            username: session.user.email.split('@')[0],
-            avatar: session.user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.email}`,
-            university: session.user.user_metadata?.university || "University",
-            year: "Student",
-            location: "Campus",
-            bio: 'Connected via Supabase',
-            isOnline: true
+        // Load profile data from database
+        try {
+          const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/profiles/${session.user.id}`);
+          const result = await response.json();
+          
+          let profileData;
+          if (result.success) {
+            // Use database profile data
+            profileData = {
+              id: session.user.id,
+              email: session.user.email,
+              displayName: result.data.display_name || session.user.user_metadata?.full_name || session.user.email,
+              username: result.data.username || session.user.email.split('@')[0],
+              avatar: result.data.avatar_url || session.user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.email}`,
+              bio: result.data.bio || 'Connected via Supabase',
+              phone: result.data.phone,
+              dateOfBirth: result.data.date_of_birth,
+              gender: result.data.gender,
+              location: result.data.location,
+              university: result.data.university || "University",
+              course: result.data.course,
+              department: result.data.department,
+              graduationYear: result.data.graduation_year,
+              year: result.data.year || "Student",
+              interests: result.data.interests || [],
+              skills: result.data.skills || [],
+              isOnline: true
+            };
+          } else {
+            // Fallback to auth metadata if profile not found
+            profileData = {
+              id: session.user.id,
+              email: session.user.email,
+              displayName: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email,
+              username: session.user.email.split('@')[0],
+              avatar: session.user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.email}`,
+              university: session.user.user_metadata?.university || "University",
+              year: "Student",
+              location: "Campus",
+              bio: 'Connected via Supabase',
+              interests: [],
+              skills: [],
+              isOnline: true
+            };
           }
-        });
+          
+          dispatch({ 
+            type: 'LOGIN', 
+            payload: profileData
+          });
+        } catch (error) {
+          console.error('Error loading profile:', error);
+          // Fallback to auth metadata
+          dispatch({ 
+            type: 'LOGIN', 
+            payload: {
+              id: session.user.id,
+              email: session.user.email,
+              displayName: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email,
+              username: session.user.email.split('@')[0],
+              avatar: session.user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.email}`,
+              university: session.user.user_metadata?.university || "University",
+              year: "Student",
+              location: "Campus",
+              bio: 'Connected via Supabase',
+              interests: [],
+              skills: [],
+              isOnline: true
+            }
+          });
+        }
       }
       // Session check complete
       dispatch({ type: 'SET_SESSION_LOADING', payload: false });
