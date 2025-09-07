@@ -56,8 +56,7 @@ const Chat = () => {
     try {
       setLoadingMessages(true);
       
-      const conversationId = getConversationId();
-      
+      // Load messages between current user and selected friend
       const { data, error } = await supabase
         .from('messages')
         .select(`
@@ -65,7 +64,6 @@ const Chat = () => {
           content,
           created_at,
           user_id,
-          conversation_id,
           profiles:user_id (
             id,
             username,
@@ -73,7 +71,7 @@ const Chat = () => {
             avatar_url
           )
         `)
-        .eq('conversation_id', conversationId)
+        .or(`user_id.eq.${currentUserId},user_id.eq.${selectedFriend.id}`)
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -81,7 +79,12 @@ const Chat = () => {
         return;
       }
 
-      setMessages(data || []);
+      // Filter messages to only show conversation between these two users
+      const conversationMessages = data?.filter(msg => 
+        (msg.user_id === currentUserId || msg.user_id === selectedFriend.id)
+      ) || [];
+
+      setMessages(conversationMessages);
     } catch (error) {
       console.error('Error loading messages:', error);
     } finally {
@@ -90,40 +93,39 @@ const Chat = () => {
   };
 
   const setupRealtimeSubscription = () => {
-    const conversationId = getConversationId();
-    
     subscriptionRef.current = supabase
-      .channel(`messages:${conversationId}`)
+      .channel(`messages:${currentUserId}_${selectedFriend.id}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`
+          table: 'messages'
         },
         async (payload) => {
-          // Fetch the complete message with profile data
-          const { data } = await supabase
-            .from('messages')
-            .select(`
-              id,
-              content,
-              created_at,
-              user_id,
-              conversation_id,
-              profiles:user_id (
+          // Only add message if it's from current conversation participants
+          if (payload.new.user_id === currentUserId || payload.new.user_id === selectedFriend.id) {
+            // Fetch the complete message with profile data
+            const { data } = await supabase
+              .from('messages')
+              .select(`
                 id,
-                username,
-                display_name,
-                avatar_url
-              )
-            `)
-            .eq('id', payload.new.id)
-            .single();
+                content,
+                created_at,
+                user_id,
+                profiles:user_id (
+                  id,
+                  username,
+                  display_name,
+                  avatar_url
+                )
+              `)
+              .eq('id', payload.new.id)
+              .single();
 
-          if (data) {
-            setMessages(prev => [...prev, data]);
+            if (data) {
+              setMessages(prev => [...prev, data]);
+            }
           }
         }
       )
@@ -134,14 +136,12 @@ const Chat = () => {
     if (!newMessage.trim() || !selectedFriend || !currentUserId) return;
 
     try {
-      const conversationId = getConversationId();
-      
+      // Send message without conversation_id since it's causing UUID errors
       const { error } = await supabase
         .from('messages')
         .insert({
           content: newMessage.trim(),
-          user_id: currentUserId,
-          conversation_id: conversationId
+          user_id: currentUserId
         });
 
       if (error) {
