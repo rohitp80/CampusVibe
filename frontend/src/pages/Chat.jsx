@@ -113,7 +113,7 @@ const Chat = () => {
     // Add message to UI immediately (optimistic update)
     const tempMessage = {
       id: `temp_${Date.now()}`,
-      content: content,
+      content: fileName, // Just show filename for now
       created_at: new Date().toISOString(),
       sender_id: currentUserId,
       receiver_id: selectedFriend.id,
@@ -133,13 +133,16 @@ const Chat = () => {
     setTimeout(() => scrollToBottom(), 100);
 
     try {
+      // Store file URL and metadata in database
       const { error } = await supabase
         .from('chat_messages')
         .insert({
-          content: content,
+          content: fileName, // Store filename as content
           sender_id: currentUserId,
           receiver_id: selectedFriend.id,
-          message_type: messageType
+          message_type: messageType,
+          file_url: fileUrl,
+          file_name: fileName
         });
 
       if (error) {
@@ -196,6 +199,9 @@ const Chat = () => {
           sender_id,
           receiver_id,
           is_read,
+          message_type,
+          file_url,
+          file_name,
           sender:sender_id (
             id,
             username,
@@ -251,6 +257,9 @@ const Chat = () => {
                 sender_id,
                 receiver_id,
                 is_read,
+                message_type,
+                file_url,
+                file_name,
                 sender:sender_id (
                   id,
                   username,
@@ -453,7 +462,56 @@ const Chat = () => {
                               : 'bg-secondary text-secondary-foreground'
                           }`}
                         >
-                          <p className="text-sm">{message.content}</p>
+                          {/* Render different content based on message type */}
+                          {message.message_type === 'image' ? (
+                            <div>
+                              {message.file_url ? (
+                                <img 
+                                  src={message.file_url} 
+                                  alt={message.file_name || 'Image'}
+                                  className="max-w-full h-auto rounded mb-2 cursor-pointer"
+                                  onClick={() => window.open(message.file_url, '_blank')}
+                                />
+                              ) : (
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Image className="w-4 h-4" />
+                                  <span className="text-sm">{message.content.replace('📷 Image: ', '')}</span>
+                                </div>
+                              )}
+                            </div>
+                          ) : message.message_type === 'video' ? (
+                            <div>
+                              {message.file_url ? (
+                                <video 
+                                  src={message.file_url} 
+                                  controls
+                                  className="max-w-full h-auto rounded mb-2"
+                                />
+                              ) : (
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Video className="w-4 h-4" />
+                                  <span className="text-sm">{message.content.replace('🎥 Video: ', '')}</span>
+                                </div>
+                              )}
+                            </div>
+                          ) : message.message_type === 'document' ? (
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <FileText className="w-4 h-4" />
+                                <a 
+                                  href={message.file_url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-sm underline hover:no-underline"
+                                >
+                                  {message.file_name || message.content.replace('📄 ', '')}
+                                </a>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-sm">{message.content}</p>
+                          )}
+                          
                           <p className="text-xs opacity-70 mt-1">
                             {new Date(message.created_at).toLocaleTimeString([], {
                               hour: '2-digit',
