@@ -26,15 +26,23 @@ const Chat = () => {
     getCurrentUser();
   }, []);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive (but not on initial load)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (messages.length > 0) {
+      // Only scroll if there are messages and it's not the initial load
+      const timer = setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [messages.length]); // Only trigger when message count changes
 
   // Load messages and set up real-time subscription
   useEffect(() => {
     if (!selectedFriend || !currentUserId) return;
 
+    // Clear messages first to prevent scroll issues
+    setMessages([]);
     loadMessages();
     setupRealtimeSubscription();
 
@@ -81,6 +89,12 @@ const Chat = () => {
       }
 
       setMessages(data || []);
+      
+      // Scroll to bottom after messages load (with delay to prevent jump)
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      }, 50);
+      
     } catch (error) {
       console.error('Error loading messages:', error);
     } finally {
