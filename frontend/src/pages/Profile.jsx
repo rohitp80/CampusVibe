@@ -5,6 +5,8 @@ import { safeRender, normalizeProfileData } from '../utils/profileUtils.js';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import { useFriends } from '../hooks/useFriends.js';
 import FriendRequests from '../components/Notifications/FriendRequests.jsx';
+import PostCard from '../components/Post/PostCard.jsx';
+import { supabase } from '../lib/supabase.js';
 import { 
   User, 
   Mail, 
@@ -52,13 +54,6 @@ const ProfileContent = () => {
   
   // Normalize profile data to prevent object rendering errors
   const profileUser = normalizeProfileData(rawProfileUser);
-  
-  // Debug: Log the profileUser data
-  console.log('Raw Profile User Data:', rawProfileUser);
-  console.log('Normalized Profile User Data:', profileUser);
-  console.log('Is Own Profile:', isOwnProfile);
-  console.log('Profile Loading:', profileLoading);
-  console.log('Profile Error:', profileError);
   
   const isFriend = state.friends?.some(f => f.username === profileUser.username);
   const hasPendingRequest = state.friendRequests?.some(req => 
@@ -374,395 +369,288 @@ const ProfileContent = () => {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Contact & Personal Info */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-card rounded-xl border border-border shadow-card p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-            <User className="w-5 h-5" />
-            Personal Information
-          </h3>
-          
-          <div className="space-y-4">
-            {isOwnProfile && (
-              <div className="flex items-center gap-3">
-                <Mail className="w-4 h-4 text-muted-foreground" />
-                {isEditing ? (
-                  <input
-                    type="email"
-                    value={editData.email}
-                    onChange={(e) => setEditData({...editData, email: e.target.value})}
-                    className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
-                  />
-                ) : (
-                  <span className="text-foreground">{safeRender(profileUser?.email)}</span>
+        
+        {/* Personal Info, Academic Info, Interests & Skills inside header */}
+        <div className="mt-6 pt-6 border-t border-border">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            {/* Personal Information */}
+            <div className="bg-secondary/30 rounded-lg p-4 border border-border/50">
+              <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                <User className="w-4 h-4" />
+                Personal Information
+              </h3>
+              
+              <div className="space-y-3 text-sm">
+                {isOwnProfile && (
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-3 h-3 text-muted-foreground" />
+                    {isEditing ? (
+                      <input
+                        type="email"
+                        value={editData.email}
+                        onChange={(e) => setEditData({...editData, email: e.target.value})}
+                        className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground text-xs"
+                      />
+                    ) : (
+                      <span className="text-foreground">{safeRender(profileUser?.email)}</span>
+                    )}
+                  </div>
                 )}
+                
+                {isOwnProfile && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-3 h-3 text-muted-foreground" />
+                    {isEditing ? (
+                      <input
+                        type="tel"
+                        value={editData.phone}
+                        onChange={(e) => setEditData({...editData, phone: e.target.value})}
+                        placeholder="Phone number"
+                        className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground text-xs"
+                      />
+                    ) : (
+                      <span className="text-foreground">{safeRender(profileUser?.phone)}</span>
+                    )}
+                  </div>
+                )}
+                
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-3 h-3 text-muted-foreground" />
+                  {isEditing ? (
+                    <input
+                      type="date"
+                      value={editData.dateOfBirth}
+                      onChange={(e) => setEditData({...editData, dateOfBirth: e.target.value})}
+                      className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground text-xs"
+                    />
+                  ) : (
+                    <span className="text-foreground">DOB: {safeRender(profileUser?.dateOfBirth)}</span>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <User className="w-3 h-3 text-muted-foreground" />
+                  {isEditing ? (
+                    <select
+                      value={editData.gender}
+                      onChange={(e) => setEditData({...editData, gender: e.target.value})}
+                      className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground text-xs"
+                    >
+                      <option value="">Select gender</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                      <option value="prefer_not_to_say">Prefer not to say</option>
+                    </select>
+                  ) : (
+                    <span className="text-foreground">Gender: {safeRender(profileUser?.gender, "Not specified")}</span>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-3 h-3 text-muted-foreground" />
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editData.location}
+                      onChange={(e) => setEditData({...editData, location: e.target.value})}
+                      placeholder="Location"
+                      className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground text-xs"
+                    />
+                  ) : (
+                    <span className="text-foreground">Location: {safeRender(profileUser?.location)}</span>
+                  )}
+                </div>
               </div>
-            )}
-            
-            {isOwnProfile && (
-              <div className="flex items-center gap-3">
-                <Phone className="w-4 h-4 text-muted-foreground" />
-                {isEditing ? (
-                  <input
-                    type="tel"
-                    value={editData.phone}
-                    onChange={(e) => setEditData({...editData, phone: e.target.value})}
-                    placeholder="Phone number"
-                    className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
-                  />
-                ) : (
-                  <span className="text-foreground">{safeRender(profileUser?.phone)}</span>
-                )}
+            </div>
+
+            {/* Academic Information */}
+            <div className="bg-secondary/30 rounded-lg p-4 border border-border/50">
+              <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                <GraduationCap className="w-4 h-4" />
+                Academic Information
+              </h3>
+              
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <Building className="w-3 h-3 text-muted-foreground" />
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editData.university}
+                      onChange={(e) => setEditData({...editData, university: e.target.value})}
+                      placeholder="University"
+                      className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground text-xs"
+                    />
+                  ) : (
+                    <span className="text-foreground">University: {safeRender(profileUser?.university)}</span>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-3 h-3 text-muted-foreground" />
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editData.course}
+                      onChange={(e) => setEditData({...editData, course: e.target.value})}
+                      placeholder="Course/Major"
+                      className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground text-xs"
+                    />
+                  ) : (
+                    <span className="text-foreground">Course: {safeRender(profileUser?.course)}</span>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Building className="w-3 h-3 text-muted-foreground" />
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editData.department}
+                      onChange={(e) => setEditData({...editData, department: e.target.value})}
+                      placeholder="Department"
+                      className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground text-xs"
+                    />
+                  ) : (
+                    <span className="text-foreground">Department: {safeRender(profileUser?.department)}</span>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-3 h-3 text-muted-foreground" />
+                  {isEditing ? (
+                    <input
+                      type="number"
+                      value={editData.graduationYear}
+                      onChange={(e) => setEditData({...editData, graduationYear: e.target.value})}
+                      placeholder="Graduation Year"
+                      min="2020"
+                      max="2030"
+                      className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground text-xs"
+                    />
+                  ) : (
+                    <span className="text-foreground">Graduation: {safeRender(profileUser?.graduationYear)}</span>
+                  )}
+                </div>
               </div>
-            )}
-            
-            <div className="flex items-center gap-3">
-              <Calendar className="w-4 h-4 text-muted-foreground" />
-              {isEditing ? (
-                <input
-                  type="date"
-                  value={editData.dateOfBirth}
-                  onChange={(e) => setEditData({...editData, dateOfBirth: e.target.value})}
-                  className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
-                />
-              ) : (
-                <span className="text-foreground">DOB: {safeRender(profileUser?.dateOfBirth)}</span>
-              )}
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <User className="w-4 h-4 text-muted-foreground" />
-              {isEditing ? (
-                <select
-                  value={editData.gender}
-                  onChange={(e) => setEditData({...editData, gender: e.target.value})}
-                  className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
-                >
-                  <option value="">Select gender</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
-                  <option value="prefer_not_to_say">Prefer not to say</option>
-                </select>
-              ) : (
-                <span className="text-foreground">Gender: {safeRender(profileUser?.gender, "Not specified")}</span>
-              )}
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <MapPin className="w-4 h-4 text-muted-foreground" />
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={editData.location}
-                  onChange={(e) => setEditData({...editData, location: e.target.value})}
-                  placeholder="Location"
-                  className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
-                />
-              ) : (
-                <span className="text-foreground">Location: {safeRender(profileUser?.location)}</span>
-              )}
             </div>
           </div>
-        </div>
 
-        {/* Academic Info */}
-        <div className="bg-card rounded-xl border border-border shadow-card p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-            <GraduationCap className="w-5 h-5" />
-            Academic Information
-          </h3>
-          
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <Building className="w-4 h-4 text-muted-foreground" />
-              {isEditing ? (
+          {/* Interests & Skills */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            {/* Interests */}
+            <div className="bg-secondary/30 rounded-lg p-4 border border-border/50">
+              <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Heart className="w-4 h-4" />
+                Interests
+              </h3>
+              
+              <div className="flex flex-wrap gap-1 mb-3">
+                {(isEditing ? editData.interests : profileUser.interests || []).map((interest, index) => (
+                  <span key={index} className="px-2 py-1 bg-primary/20 text-primary rounded-full text-xs flex items-center gap-1">
+                    {interest}
+                    {isEditing && isOwnProfile && (
+                      <button onClick={() => removeInterest(interest)} className="hover:text-destructive">
+                        <X className="w-2 h-2" />
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+              
+              {isEditing && isOwnProfile && (
                 <input
                   type="text"
-                  value={editData.university}
-                  onChange={(e) => setEditData({...editData, university: e.target.value})}
-                  placeholder="University"
-                  className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
+                  placeholder="Add interest (press Enter)"
+                  className="w-full bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground text-xs"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      addInterest(e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
                 />
-              ) : (
-                <span className="text-foreground">University: {safeRender(profileUser?.university)}</span>
               )}
             </div>
-            
-            <div className="flex items-center gap-3">
-              <BookOpen className="w-4 h-4 text-muted-foreground" />
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={editData.course}
-                  onChange={(e) => setEditData({...editData, course: e.target.value})}
-                  placeholder="Course/Major"
-                  className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
-                />
-              ) : (
-                <span className="text-foreground">Course: {safeRender(profileUser?.course)}</span>
-              )}
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <Building className="w-4 h-4 text-muted-foreground" />
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={editData.department}
-                  onChange={(e) => setEditData({...editData, department: e.target.value})}
-                  placeholder="Department"
-                  className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
-                />
-              ) : (
-                <span className="text-foreground">Department: {safeRender(profileUser?.department)}</span>
-              )}
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <Calendar className="w-4 h-4 text-muted-foreground" />
-              {isEditing ? (
-                <input
-                  type="number"
-                  value={editData.graduationYear}
-                  onChange={(e) => setEditData({...editData, graduationYear: e.target.value})}
-                  placeholder="Graduation Year"
-                  min="2020"
-                  max="2030"
-                  className="flex-1 bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground"
-                />
-              ) : (
-                <span className="text-foreground">Graduation: {safeRender(profileUser?.graduationYear)}</span>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Interests & Skills */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-card rounded-xl border border-border shadow-card p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-            <Heart className="w-5 h-5" />
-            Interests
-          </h3>
-          
-          <div className="flex flex-wrap gap-2 mb-4">
-            {(isEditing ? editData.interests : profileUser.interests || []).map((interest, index) => (
-              <span key={index} className="px-3 py-1 bg-primary/20 text-primary rounded-full text-sm flex items-center gap-2">
-                {interest}
-                {isEditing && isOwnProfile && (
-                  <button onClick={() => removeInterest(interest)} className="hover:text-destructive">
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </span>
-            ))}
+            {/* Skills */}
+            <div className="bg-secondary/30 rounded-lg p-4 border border-border/50">
+              <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Briefcase className="w-4 h-4" />
+                Skills
+              </h3>
+              
+              <div className="flex flex-wrap gap-1 mb-3">
+                {(isEditing ? editData.skills : profileUser.skills || []).map((skill, index) => (
+                  <span key={index} className="px-2 py-1 bg-secondary/50 text-secondary-foreground rounded-full text-xs flex items-center gap-1">
+                    {skill}
+                    {isEditing && isOwnProfile && (
+                      <button onClick={() => removeSkill(skill)} className="hover:text-destructive">
+                        <X className="w-2 h-2" />
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+              
+              {isEditing && isOwnProfile && (
+                <input
+                  type="text"
+                  placeholder="Add skill (press Enter)"
+                  className="w-full bg-secondary/30 border border-border/50 rounded px-2 py-1 text-foreground text-xs"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      addSkill(e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+              )}
+            </div>
           </div>
-          
-          {isEditing && isOwnProfile && (
-            <input
-              type="text"
-              placeholder="Add interest (press Enter)"
-              className="w-full bg-secondary/30 border border-border/50 rounded px-3 py-2 text-foreground"
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  addInterest(e.target.value);
-                  e.target.value = '';
-                }
-              }}
-            />
-          )}
-        </div>
-
-        <div className="bg-card rounded-xl border border-border shadow-card p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-            <Briefcase className="w-5 h-5" />
-            Skills
-          </h3>
-          
-          <div className="flex flex-wrap gap-2 mb-4">
-            {(isEditing ? editData.skills : profileUser.skills || []).map((skill, index) => (
-              <span key={index} className="px-3 py-1 bg-secondary/50 text-secondary-foreground rounded-full text-sm flex items-center gap-2">
-                {skill}
-                {isEditing && isOwnProfile && (
-                  <button onClick={() => removeSkill(skill)} className="hover:text-destructive">
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </span>
-            ))}
-          </div>
-          
-          {isEditing && isOwnProfile && (
-            <input
-              type="text"
-              placeholder="Add skill (press Enter)"
-              className="w-full bg-secondary/30 border border-border/50 rounded px-3 py-2 text-foreground"
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  addSkill(e.target.value);
-                  e.target.value = '';
-                }
-              }}
-            />
-          )}
         </div>
         
-        {/* Tabs Section */}
-        <div className="bg-card border border-border rounded-xl mt-6">
-          <div className="flex border-b border-border">
-            <button
-              onClick={() => setActiveTab('posts')}
-              className={`px-6 py-3 font-medium transition-colors ${
-                activeTab === 'posts'
-                  ? 'text-primary border-b-2 border-primary bg-primary/5'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Posts ({(state.posts || []).filter(post => 
-                (post.author === profileUser.username || post.username === profileUser.username) && !post.isAnonymous
-              ).length})
-            </button>
-            {isOwnProfile && (
-              <>
-                <button
-                  onClick={() => setActiveTab('requests')}
-                  className={`px-6 py-3 font-medium transition-colors ${
-                    activeTab === 'requests'
-                      ? 'text-primary border-b-2 border-primary bg-primary/5'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Friend Requests
-                </button>
-                <button
-                  onClick={() => setActiveTab('friends')}
-                  className={`px-6 py-3 font-medium transition-colors ${
-                    activeTab === 'friends'
-                      ? 'text-primary border-b-2 border-primary bg-primary/5'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Friends ({friends.length})
-                </button>
-              </>
-            )}
-          </div>
+        {/* Posts Section Inside Header */}
+        <div className="mt-6 pt-6 border-t border-border bg-secondary/30 rounded-lg p-4 border border-border/50">
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <BookOpen className="w-5 h-5" />
+            Posts ({(state.posts || []).filter(post => 
+              (post.author === profileUser.username || post.username === profileUser.username) && !post.isAnonymous
+            ).length})
+          </h2>
           
-          <div className="p-8">
-            {activeTab === 'posts' && (
-              <div>
-                <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
-                  <BookOpen className="w-5 h-5" />
-                  Posts
-                </h2>
-                
-                <div className="space-y-6">
-                  {(state.posts || [])
-                    .filter(post => (post.author === profileUser.username || post.username === profileUser.username) && !post.isAnonymous)
-                    .map(post => (
-                <div key={post.id} className="bg-secondary/30 rounded-lg p-6 border border-border/50">
-                  <div className="flex items-start gap-3">
-                    <img
-                      src={profileUser.avatar || profileUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileUser.username}`}
-                      alt={profileUser.displayName || profileUser.display_name}
-                      className="w-12 h-12 rounded-full"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="font-medium">{profileUser.displayName || profileUser.display_name}</span>
-                        <span className="text-muted-foreground text-sm">@{profileUser.username}</span>
-                        <span className="text-muted-foreground text-sm">•</span>
-                        <span className="text-muted-foreground text-sm">
-                          {post.timestamp ? new Date(post.timestamp).toLocaleDateString() : 'Just now'}
-                        </span>
-                      </div>
-                      <p className="text-foreground mb-3 text-base leading-relaxed">{post.content}</p>
-                      {post.image && (
-                        <img src={post.image} alt="Post" className="rounded-lg max-w-full h-auto mb-2" />
-                      )}
-                      <div className="flex items-center gap-4 text-muted-foreground text-sm">
-                        <span>❤️ {post.likes}</span>
-                        <span>💬 {post.comments}</span>
-                        <span>🔄 {post.shares}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))
-            }
+          <div className="space-y-4">
+            {(state.posts || [])
+              .filter(post => (post.author === profileUser.username || post.username === profileUser.username) && !post.isAnonymous)
+              .map(post => (
+                <PostCard 
+                  key={post.id} 
+                  post={{
+                    ...post,
+                    likes: post.likes || 0,
+                    comments: post.comments || 0,
+                    shares: post.shares || 0,
+                    isLiked: post.isLiked || false,
+                    displayName: post.displayName || profileUser.displayName || profileUser.display_name,
+                    username: post.username || profileUser.username,
+                    avatar: post.avatar || profileUser.avatar || profileUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileUser.username}`,
+                    timestamp: post.timestamp || post.created_at || new Date()
+                  }}
+                  onPostDeleted={() => {
+                    // Handle post deletion if needed
+                  }}
+                />
+              ))}
             
             {(state.posts || []).filter(post => (post.author === profileUser.username || post.username === profileUser.username) && !post.isAnonymous).length === 0 && (
-              <p className="text-muted-foreground text-center py-8">No posts yet</p>
+              <p className="text-muted-foreground text-center py-4 text-sm">No posts yet</p>
             )}
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'requests' && isOwnProfile && (
-              <div>
-                <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
-                  <UserPlus className="w-5 h-5" />
-                  Friend Requests
-                </h2>
-                <FriendRequests showHeader={false} />
-              </div>
-            )}
-            {activeTab === 'friends' && isOwnProfile && (
-              <div>
-                <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
-                  <UserPlus className="w-5 h-5" />
-                  Friends ({friends.length})
-                </h2>
-                
-                {friends.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">No friends yet</p>
-                ) : (
-                  <div className="grid grid-cols-1 gap-3">
-                    {friends.map((friend) => (
-                      <div key={friend.id} className="bg-card rounded-lg p-3 border border-border shadow-sm hover:shadow-md transition-all duration-200">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 flex-1">
-                            <img
-                              src={friend.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.username}`}
-                              alt={friend.display_name || friend.username}
-                              className="w-10 h-10 rounded-full object-cover"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-medium text-foreground text-sm truncate">
-                                {friend.display_name || friend.username}
-                              </h3>
-                              <p className="text-xs text-muted-foreground truncate">@{friend.username}</p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => {
-                              actions.setViewingProfile({
-                                username: friend.username,
-                                displayName: friend.display_name,
-                                display_name: friend.display_name,
-                                avatar_url: friend.avatar_url
-                              });
-                            }}
-                            className="px-4 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-xs font-medium"
-                          >
-                            View
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-            
           </div>
         </div>
       </div>
-    </div>
+
+      </div>
   );
 };
 

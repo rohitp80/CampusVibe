@@ -18,7 +18,6 @@ const Index = () => {
   const { state, actions } = useApp();
   
   const renderPage = () => {
-    console.log('renderPage called with currentPage:', state.currentPage);
     switch (state.currentPage) {
       case 'feed': return <Feed />;
       case 'explore': return <Explore />;
