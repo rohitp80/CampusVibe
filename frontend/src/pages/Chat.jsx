@@ -45,35 +45,34 @@ const Chat = () => {
     };
   }, [selectedFriend, currentUserId]);
 
-  const getConversationKey = () => {
-    if (!selectedFriend || !currentUserId) return null;
-    // Create consistent conversation key by sorting user IDs
-    const ids = [currentUserId, selectedFriend.id].sort();
-    return `${ids[0]}_${ids[1]}`;
-  };
-
   const loadMessages = async () => {
     try {
       setLoadingMessages(true);
       
-      // Load all messages and filter client-side for this conversation
+      // Load messages between current user and selected friend
       const { data, error } = await supabase
-        .from('messages')
+        .from('chat_messages')
         .select(`
           id,
           content,
           created_at,
-          user_id,
-          type,
-          profiles:user_id (
+          sender_id,
+          receiver_id,
+          is_read,
+          sender:sender_id (
+            id,
+            username,
+            display_name,
+            avatar_url
+          ),
+          receiver:receiver_id (
             id,
             username,
             display_name,
             avatar_url
           )
         `)
-        .or(`user_id.eq.${currentUserId},user_id.eq.${selectedFriend.id}`)
-        .eq('type', 'direct') // Use type field to identify direct messages
+        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedFriend.id}),and(sender_id.eq.${selectedFriend.id},receiver_id.eq.${currentUserId})`)
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -81,21 +80,7 @@ const Chat = () => {
         return;
       }
 
-      // Filter to only messages between these two users
-      const conversationKey = getConversationKey();
-      const conversationMessages = data?.filter(msg => {
-        // Check if message content includes conversation key (we'll add it as metadata)
-        return msg.content.includes(`[${conversationKey}]`) || 
-               (msg.user_id === currentUserId || msg.user_id === selectedFriend.id);
-      }) || [];
-
-      // Clean the conversation key from display
-      const cleanMessages = conversationMessages.map(msg => ({
-        ...msg,
-        content: msg.content.replace(/\[.*?\]\s*/, '')
-      }));
-
-      setMessages(cleanMessages);
+      setMessages(data || []);
     } catch (error) {
       console.error('Error loading messages:', error);
     } finally {
@@ -105,34 +90,49 @@ const Chat = () => {
 
   const setupRealtimeSubscription = () => {
     subscriptionRef.current = supabase
-      .channel(`direct_messages`)
+      .channel(`chat:${currentUserId}_${selectedFriend.id}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'messages',
-          filter: `type=eq.direct`
+          table: 'chat_messages'
         },
-        (payload) => {
-          const conversationKey = getConversationKey();
+        async (payload) => {
           // Only show messages for this conversation
-          if (payload.new.content.includes(`[${conversationKey}]`) && 
-              payload.new.user_id === selectedFriend.id) {
-            const newMessage = {
-              id: payload.new.id,
-              content: payload.new.content.replace(/\[.*?\]\s*/, ''),
-              created_at: payload.new.created_at,
-              user_id: payload.new.user_id,
-              profiles: {
-                id: selectedFriend.id,
-                username: selectedFriend.username,
-                display_name: selectedFriend.display_name,
-                avatar_url: selectedFriend.avatar_url
-              }
-            };
+          if ((payload.new.sender_id === selectedFriend.id && payload.new.receiver_id === currentUserId) ||
+              (payload.new.sender_id === currentUserId && payload.new.receiver_id === selectedFriend.id)) {
             
-            setMessages(prev => [...prev, newMessage]);
+            // Fetch complete message with profile data
+            const { data } = await supabase
+              .from('chat_messages')
+              .select(`
+                id,
+                content,
+                created_at,
+                sender_id,
+                receiver_id,
+                is_read,
+                sender:sender_id (
+                  id,
+                  username,
+                  display_name,
+                  avatar_url
+                ),
+                receiver:receiver_id (
+                  id,
+                  username,
+                  display_name,
+                  avatar_url
+                )
+              `)
+              .eq('id', payload.new.id)
+              .single();
+
+            if (data && payload.new.sender_id !== currentUserId) {
+              // Only add if it's from the other person (we handle our own optimistically)
+              setMessages(prev => [...prev, data]);
+            }
           }
         }
       )
@@ -143,16 +143,17 @@ const Chat = () => {
     if (!newMessage.trim() || !selectedFriend || !currentUserId) return;
 
     const messageContent = newMessage.trim();
-    const conversationKey = getConversationKey();
     setNewMessage(''); // Clear input immediately
 
     // Add message to UI immediately (optimistic update)
     const tempMessage = {
-      id: Date.now(), // Temporary ID
+      id: `temp_${Date.now()}`, // Temporary ID
       content: messageContent,
       created_at: new Date().toISOString(),
-      user_id: currentUserId,
-      profiles: {
+      sender_id: currentUserId,
+      receiver_id: selectedFriend.id,
+      is_read: false,
+      sender: {
         id: currentUserId,
         username: 'You',
         display_name: 'You',
@@ -163,13 +164,14 @@ const Chat = () => {
     setMessages(prev => [...prev, tempMessage]);
 
     try {
-      // Send to database with conversation key embedded in content
+      // Send to database
       const { error } = await supabase
-        .from('messages')
+        .from('chat_messages')
         .insert({
-          content: `[${conversationKey}] ${messageContent}`,
-          user_id: currentUserId,
-          type: 'direct'
+          content: messageContent,
+          sender_id: currentUserId,
+          receiver_id: selectedFriend.id,
+          message_type: 'text'
         });
 
       if (error) {
@@ -299,12 +301,12 @@ const Chat = () => {
                       <div
                         key={message.id}
                         className={`flex ${
-                          message.user_id === currentUserId ? 'justify-end' : 'justify-start'
+                          message.sender_id === currentUserId ? 'justify-end' : 'justify-start'
                         }`}
                       >
                         <div
                           className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                            message.user_id === currentUserId
+                            message.sender_id === currentUserId
                               ? 'bg-primary text-primary-foreground'
                               : 'bg-secondary text-secondary-foreground'
                           }`}
