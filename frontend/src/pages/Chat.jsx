@@ -26,15 +26,19 @@ const Chat = () => {
     getCurrentUser();
   }, []);
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  // Only auto-scroll when sending a new message
+  const scrollToBottom = () => {
+    const messagesContainer = document.querySelector('.messages-container');
+    if (messagesContainer) {
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+  };
 
   // Load messages and set up real-time subscription
   useEffect(() => {
     if (!selectedFriend || !currentUserId) return;
 
+    setMessages([]); // Clear messages immediately
     loadMessages();
     setupRealtimeSubscription();
 
@@ -81,6 +85,7 @@ const Chat = () => {
       }
 
       setMessages(data || []);
+      
     } catch (error) {
       console.error('Error loading messages:', error);
     } finally {
@@ -132,6 +137,8 @@ const Chat = () => {
             if (data && payload.new.sender_id !== currentUserId) {
               // Only add if it's from the other person (we handle our own optimistically)
               setMessages(prev => [...prev, data]);
+              // Scroll to bottom when receiving new message
+              setTimeout(() => scrollToBottom(), 100);
             }
           }
         }
@@ -162,6 +169,8 @@ const Chat = () => {
     };
     
     setMessages(prev => [...prev, tempMessage]);
+    // Scroll to bottom when sending message
+    setTimeout(() => scrollToBottom(), 100);
 
     try {
       // Send to database
@@ -291,7 +300,7 @@ const Chat = () => {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 messages-container">
                   {loadingMessages ? (
                     <div className="flex items-center justify-center h-32">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
