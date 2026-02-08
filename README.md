@@ -1,4 +1,4 @@
-# CampusConnect
+# CampusVibe
 
 This is a comprehensive social media platform specifically designed for university students. Here's what's happening in this directory:
 
